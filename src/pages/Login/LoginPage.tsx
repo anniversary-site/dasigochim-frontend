@@ -3,28 +3,38 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth";
 import logo from "@/assets/logo.png";
 import GoogleLoginButton from "@/components/login/GoogleLoginButton";
-import { GOOGLE_CLIENT_ID } from "@/constants/google";
+import GuestLoginPanel from "@/components/login/GuestLoginPanel";
+import type { PrincipalType } from "@/api/http";
+import { GOOGLE_CLIENT_ID, GUEST_LOGIN_ENABLED } from "@/constants/google";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, guestLogin } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 구글 ID token으로 백엔드 로그인 → 성공 시 항상 지도로 이동
-  const handleCredential = useCallback(
-    async (idToken: string) => {
+  // 로그인 성공 시 학생은 지도, 관리자는 대시보드로 이동
+  const runLogin = useCallback(
+    async (request: () => Promise<PrincipalType>) => {
       setSubmitting(true);
       setError(null);
       try {
-        const principalType = await login(idToken);
+        const principalType = await request();
         navigate(principalType === "ADMIN" ? "/admin" : "/map", { replace: true });
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "로그인에 실패했습니다.");
         setSubmitting(false);
       }
     },
-    [login, navigate]
+    [navigate]
+  );
+
+  // 구글 ID token으로 백엔드 로그인
+  const handleCredential = useCallback((idToken: string) => runLogin(() => login(idToken)), [login, runLogin]);
+
+  const handleGuestLogin = useCallback(
+    (role: PrincipalType, code: string) => runLogin(() => guestLogin(role, code)),
+    [guestLogin, runLogin]
   );
 
   return (
@@ -47,6 +57,7 @@ export default function LoginPage() {
             VITE_GOOGLE_CLIENT_ID가 설정되지 않았습니다.
           </p>
         )}
+        {GUEST_LOGIN_ENABLED && <GuestLoginPanel onGuestLogin={handleGuestLogin} disabled={submitting} />}
         {submitting && <p className="text-sm text-text-secondary text-center">로그인 확인 중...</p>}
         {error && <p className="text-sm text-sogang-500 text-center">{error}</p>}
       </div>

@@ -17,6 +17,13 @@ export const authApi = {
     return res;
   },
 
+  // 심사위원 게스트 로그인 — 백엔드 GUEST_LOGIN_ENABLED가 켜져 있고 접근 코드가 맞을 때만 발급
+  async guestLogin(role: PrincipalType, code: string): Promise<AuthResult> {
+    const res = await http.post<AuthResult>("/auth/guest", { role, code });
+    tokenStore.set(res.accessToken, res.refreshToken, res.principalType);
+    return res;
+  },
+
   // refresh token으로 access token 재발급
   async refresh(): Promise<AuthResult> {
     const refreshToken = tokenStore.getRefresh();

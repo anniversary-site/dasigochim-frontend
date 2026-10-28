@@ -1,3 +1,6 @@
+/** 심사위원 게스트 로그인 UI 노출 여부 — 심사 기간 배포에서만 true로 둔다 */
+export const GUEST_LOGIN_ENABLED = import.meta.env.VITE_GUEST_LOGIN_ENABLED === "true";
+
 // Google Identity Services 연동 상수 — 실제 클라이언트 ID는 .env.local에서 주입한다
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 

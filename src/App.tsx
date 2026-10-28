@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useCallback, useEffect } from 'react'
 import { authApi, meApi, tokenStore } from './api'
+import type { AuthResult } from './api'
 import type { PrincipalType } from './api/http'
 import { AuthContext } from './auth'
 import type { User } from './types'
@@ -34,13 +35,22 @@ export default function App() {
     return profile
   }, [])
 
-  const login = useCallback(async (idToken: string) => {
-    const result = await authApi.socialLogin(idToken)
+  const completeLogin = useCallback(async (result: AuthResult) => {
     setPrincipalType(result.principalType)
     if (result.principalType === "USER") await loadProfile()
     else setIsLoggedIn(true)
     return result.principalType
   }, [loadProfile])
+
+  const login = useCallback(
+    async (idToken: string) => completeLogin(await authApi.socialLogin(idToken)),
+    [completeLogin]
+  )
+
+  const guestLogin = useCallback(
+    async (role: PrincipalType, code: string) => completeLogin(await authApi.guestLogin(role, code)),
+    [completeLogin]
+  )
 
   useEffect(() => {
     const initialize = async () => {
@@ -69,7 +79,7 @@ export default function App() {
   }, [logout])
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isAuthLoading, user, principalType, login, refreshProfile: loadProfile, logout }}>
+    <AuthContext.Provider value={{ isLoggedIn, isAuthLoading, user, principalType, login, guestLogin, refreshProfile: loadProfile, logout }}>
       <Routes>
         <Route path="/" element={<Navigate to="/map" replace />} />
         <Route path="/login" element={<LoginPage />} />
