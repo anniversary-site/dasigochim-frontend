@@ -3,9 +3,10 @@ import type { Report, User, AppNotification } from "@/types";
 
 export interface ProfileUpdateRequest {
   name: string;
-  major: string;
-  studentNo: string;
   phone: string;
+  buildingId: number;
+  dong?: string;
+  ho: string;
 }
 
 export const meApi = {

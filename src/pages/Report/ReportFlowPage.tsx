@@ -1,27 +1,27 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil } from "lucide-react";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAuth } from "@/auth";
 import { aiApi, buildingApi, reportApi } from "@/api";
 import type { ReportFlowAnswer, ReportQuestionStep } from "@/api";
-import type { Building } from "@/types";
+import type { Building, BuildingSpace, BuildingUnit, Region, ScenePin, SpaceType } from "@/types";
+import SceneViewer from "@/components/scene/SceneViewer";
 import { IMPROVEMENT_MARKER } from "@/utils/reportDescription";
 
 // 페이지 배경 (gray/10)
 const BG = "#fcfcfc";
 // 강조 (sogang/500)
 const SOGANG_RED = "#a92614";
-// 서강대 캠퍼스 중심
-const SOGANG_CENTER = { lat: 37.551, lng: 126.9408 };
-const OTHER_LOCATION_VALUE = "__OTHER_LOCATION__";
 
 type Stage =
   | "photo"
   | "compose"
-  | "buildingSelect"
-  | "locationInput"
-  | "locationConfirm"
+  | "region"
+  | "housing"
+  | "spaceKind"
+  | "unitInput"
+  | "commonSelect"
+  | "scene"
   | "afterLocation"
   | "question"
   | "proposal";
@@ -35,7 +35,7 @@ type Msg =
     }
   | { id: number; role: "user"; text: string }
   | { id: number; role: "photo" }
-  | { id: number; role: "locationSaved"; label: string; lat: number; lng: number };
+  | { id: number; role: "locationSaved"; label: string; sceneId: string; pin: ScenePin };
 
 // AI 문장 내 특정 구절 강조 (여러 단어 지원)
 function renderEmphasis(text: string, emp: string | string[]) {
@@ -53,30 +53,8 @@ function renderEmphasis(text: string, emp: string | string[]) {
   );
 }
 
-type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 type MsgInput = DistributiveOmit<Msg, "id">;
-
-// ─── 카카오맵 SDK 로더 ───
-function ensureKakao(cb: () => void) {
-  const w = window as any;
-  if (w.kakao?.maps) {
-    w.kakao.maps.load(cb);
-    return;
-  }
-  const existing = document.getElementById("kakao-sdk") as HTMLScriptElement | null;
-  if (existing) {
-    existing.addEventListener("load", () => w.kakao.maps.load(cb));
-    return;
-  }
-  const appKey = import.meta.env.VITE_KAKAO_APP_KEY;
-  if (!appKey || appKey === "your-kakao-javascript-key") return;
-  const s = document.createElement("script");
-  s.id = "kakao-sdk";
-  s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services`;
-  s.async = true;
-  s.onload = () => w.kakao.maps.load(cb);
-  document.head.appendChild(s);
-}
 
 export default function ReportFlowPage() {
   const navigate = useNavigate();
@@ -103,15 +81,26 @@ export default function ReportFlowPage() {
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // 위치
-  const [locationQuery, setLocationQuery] = useState(""); // 지도 조회용(고정)
-  const [locationText, setLocationText] = useState(""); // 표시 라벨(편집 가능)
-  const [editingLoc, setEditingLoc] = useState(false);
-  const [coords, setCoords] = useState(SOGANG_CENTER);
-  const [buildings, setBuildings] = useState<Building[]>([]);
-  const [buildingsLoading, setBuildingsLoading] = useState(false);
-  const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
-  const [isOtherLocation, setIsOtherLocation] = useState(false);
+  // 위치: 지역 → 청년주택 → 세대 내부(동·호수) 또는 공용공간 → 3D 장면에 핀
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [sido, setSido] = useState("");
+  const [sigungu, setSigungu] = useState("");
+  const [housings, setHousings] = useState<Building[]>([]);
+  const [selectedHousing, setSelectedHousing] = useState<Building | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+  const [spaceKind, setSpaceKind] = useState<SpaceType>("UNIT");
+  const [dongInput, setDongInput] = useState("");
+  const [hoInput, setHoInput] = useState("");
+  const [unit, setUnit] = useState<BuildingUnit | null>(null);
+  const [spaces, setSpaces] = useState<BuildingSpace[]>([]);
+  const [selectedSpace, setSelectedSpace] = useState<BuildingSpace | null>(null);
+  const [floorInput, setFloorInput] = useState("");
+  const [sceneId, setSceneId] = useState<string | null>(null);
+  const [pin, setPin] = useState<ScenePin | null>(null);
+  const [locationDetail, setLocationDetail] = useState("");
+  // 신고서·관리자용 전체 위치 / AI 에 넘기는 위치(호수를 뺀다 — 초안 문장에 호수가 남지 않게)
+  const [locationText, setLocationText] = useState("");
+  const [aiLocationText, setAiLocationText] = useState("");
 
   // 맞춤 질문 — 한 번에 하나씩 받아오고, 답변은 다음 질문의 컨텍스트가 된다.
   const [step, setStep] = useState<ReportQuestionStep | null>(null);
@@ -145,20 +134,23 @@ export default function ReportFlowPage() {
   }, [stage]);
 
   useEffect(() => {
-    if (stage !== "buildingSelect") return;
+    if (stage !== "region") return;
     let cancelled = false;
     void (async () => {
       try {
-        const items = await buildingApi.list();
+        const items = await buildingApi.regions();
         if (cancelled) return;
-        setBuildings(items);
+        setRegions(items);
+        // 선택지가 하나뿐이면 미리 골라 둔다.
+        if (items.length === 1) {
+          setSido(items[0].sido);
+          if (items[0].sigungus.length === 1) setSigungu(items[0].sigungus[0]);
+        }
         setApiError(null);
       } catch (error) {
-        if (!cancelled) {
-          setApiError(error instanceof Error ? error.message : "건물 목록을 불러오지 못했습니다.");
-        }
+        if (!cancelled) setApiError(error instanceof Error ? error.message : "지역 목록을 불러오지 못했습니다.");
       } finally {
-        if (!cancelled) setBuildingsLoading(false);
+        if (!cancelled) setListLoading(false);
       }
     })();
     return () => {
@@ -237,7 +229,7 @@ export default function ReportFlowPage() {
 
   const handleClose = () => {
     if (reportId) void reportApi.deleteDraft(reportId).catch(() => undefined);
-    navigate("/map");
+    navigate("/home");
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -262,13 +254,10 @@ export default function ReportFlowPage() {
         { role: "photo" },
         { role: "user", text: memo.trim() },
         { role: "ai", text: "보내주신 사진과 내용을 바탕으로 신고서를 작성할게요." },
-        {
-          role: "ai",
-          text: "신고 위치의 건물을 먼저 선택해 주세요.\n길이나 야외처럼 건물이 아닌 곳은 기타를 선택할 수 있어요.",
-        },
+        { role: "ai", text: "먼저 어느 지역의 청년주택인지 골라 주세요." },
       );
-      setBuildingsLoading(true);
-      setStage("buildingSelect");
+      setListLoading(true);
+      setStage("region");
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "사진을 저장하지 못했습니다.");
     } finally {
@@ -279,34 +268,110 @@ export default function ReportFlowPage() {
   const handleInputSend = () => {
     const t = input.trim();
     if (!t) return;
-    if (stage === "locationInput") {
-      addMsgs({ role: "user", text: t }, { role: "ai", text: "해당 위치가 맞나요?" });
-      const fullLocation = selectedBuilding ? `${selectedBuilding.name} ${t}` : t;
-      setLocationQuery(fullLocation);
-      setLocationText(fullLocation);
-      if (selectedBuilding?.lat != null && selectedBuilding.lng != null) {
-        setCoords({ lat: selectedBuilding.lat, lng: selectedBuilding.lng });
-      }
-      setStage("locationConfirm");
-    } else {
-      addMsgs({ role: "user", text: t });
-    }
+    addMsgs({ role: "user", text: t });
     setInput("");
   };
 
-  const handleBuildingSelect = () => {
-    if (!selectedBuilding && !isOtherLocation) return;
-    const label = selectedBuilding?.name ?? "기타 (건물이 아닌 위치)";
+  const handleRegionSelect = async () => {
+    if (!sido || !sigungu || submitting) return;
+    setSubmitting(true);
+    setApiError(null);
+    try {
+      const items = await buildingApi.list(sido, sigungu);
+      setHousings(items);
+      setSelectedHousing(items.length === 1 ? items[0] : null);
+      addMsgs(
+        { role: "user", text: `${sido} ${sigungu}` },
+        {
+          role: "ai",
+          text: items.length
+            ? `${sigungu}의 청년주택 중 어디인가요?`
+            : `${sigungu}에는 아직 등록된 청년주택이 없어요. 다른 지역을 골라 주세요.`,
+        },
+      );
+      setStage(items.length ? "housing" : "region");
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : "청년주택 목록을 불러오지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleHousingSelect = () => {
+    if (!selectedHousing) return;
+    // 내 거주지와 같은 단지면 동·호수를 미리 채워 둔다.
+    if (user?.building?.id === selectedHousing.id) {
+      setDongInput(user.dong ?? "");
+      setHoInput(user.ho ?? "");
+    }
     addMsgs(
-      { role: "user", text: label },
-      {
-        role: "ai",
-        text: selectedBuilding
-          ? `${selectedBuilding.name}의 세부 위치를 알려주세요.\n(예: 3관 입구 앞, 2층 계단 옆)`
-          : "신고할 세부 위치를 알려주세요.\n길·야외라면 가까운 건물이나 지점을 기준으로 설명해 주세요.",
-      },
+      { role: "user", text: selectedHousing.name },
+      { role: "ai", text: "신고할 곳이 세대 안인가요, 공용공간인가요?" },
     );
-    setStage("locationInput");
+    setStage("spaceKind");
+  };
+
+  const handleSpaceKindSelect = async (kind: SpaceType) => {
+    if (!selectedHousing || submitting) return;
+    setSpaceKind(kind);
+    setApiError(null);
+    if (kind === "UNIT") {
+      addMsgs(
+        { role: "user", text: "세대 내부" },
+        { role: "ai", text: "동·호수를 알려주세요. 해당 세대 타입의 3D 평면을 보여드릴게요." },
+      );
+      setStage("unitInput");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const items = await buildingApi.spaces(selectedHousing.id);
+      setSpaces(items);
+      setSelectedSpace(null);
+      addMsgs(
+        { role: "user", text: "공용공간" },
+        { role: "ai", text: "어느 공용공간인가요?" },
+      );
+      setStage("commonSelect");
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : "공용공간 목록을 불러오지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openScene = (nextSceneId: string, userText: string) => {
+    setSceneId(nextSceneId);
+    setPin(null);
+    setLocationDetail("");
+    addMsgs(
+      { role: "user", text: userText },
+      { role: "ai", text: "3D 평면에서 문제가 있는 위치를 눌러 핀을 꽂아 주세요.\n끌어서 돌리고, 두 손가락이나 휠로 확대할 수 있어요." },
+    );
+    setStage("scene");
+  };
+
+  const handleUnitSubmit = async () => {
+    if (!selectedHousing || !hoInput.trim() || submitting) return;
+    setSubmitting(true);
+    setApiError(null);
+    try {
+      const found = await buildingApi.lookupUnit(selectedHousing.id, hoInput.trim(), dongInput.trim() || undefined);
+      setUnit(found);
+      const dongText = found.dong ? `${found.dong}동 ` : "";
+      openScene(found.sceneId, `${dongText}${found.ho}호 (${found.unitType} TYPE)`);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : "세대를 찾지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSpaceSubmit = () => {
+    if (!selectedSpace) return;
+    if (selectedSpace.requiresFloor && !floorInput.trim()) return;
+    const floorText = selectedSpace.requiresFloor ? ` ${floorInput.trim()}층` : "";
+    openScene(selectedSpace.sceneId, `${selectedSpace.name}${floorText}`);
   };
 
   const startQuestions = (firstStep: ReportQuestionStep) => {
@@ -329,24 +394,46 @@ export default function ReportFlowPage() {
     setStage("question");
   };
 
-  const handleLocationConfirm = async () => {
-    if (!reportId || submitting) return;
+  const handleSceneConfirm = async () => {
+    if (!reportId || !selectedHousing || !sceneId || !pin || submitting) return;
     setSubmitting(true);
     setApiError(null);
+    // 공용공간 이름과 핀 근처 라벨이 같으면("피트니스 · 피트니스 부근") 라벨을 생략한다.
+    const sameAsSpace = spaceKind === "COMMON" && pin.label != null && selectedSpace?.name.startsWith(pin.label);
+    const near = pin.label && !sameAsSpace ? `${pin.label} 부근` : "";
+    const detail = locationDetail.trim();
+    const where = [near, detail].filter(Boolean).join(" · ");
+    let fullText: string;
+    let aiText: string;
+    if (spaceKind === "UNIT" && unit) {
+      const dongText = unit.dong ? `${unit.dong}동 ` : "";
+      fullText = `${selectedHousing.name} ${dongText}${unit.ho}호 (${unit.unitType} TYPE)${where ? ` · ${where}` : ""}`;
+      aiText = `${selectedHousing.name} 세대 내부 (${unit.unitType} TYPE)${where ? ` · ${where}` : ""}`;
+    } else {
+      const floorText = selectedSpace?.requiresFloor && floorInput.trim() ? ` ${floorInput.trim()}층` : "";
+      fullText = `${selectedHousing.name} ${selectedSpace?.name ?? "공용공간"}${floorText}${where ? ` · ${where}` : ""}`;
+      aiText = fullText;
+    }
     try {
       await reportApi.patchLocation(reportId, {
-        buildingId: selectedBuilding?.id,
-        locationDescription: locationText,
-        lat: coords.lat,
-        lng: coords.lng,
+        buildingId: selectedHousing.id,
+        locationDescription: fullText,
+        indoor: true,
+        spaceType: spaceKind,
+        spaceCode: spaceKind === "COMMON" ? selectedSpace?.code : undefined,
+        dong: spaceKind === "UNIT" ? unit?.dong ?? (dongInput.trim() || undefined) : undefined,
+        room: spaceKind === "UNIT" ? unit?.ho : undefined,
+        floor: spaceKind === "COMMON" && selectedSpace?.requiresFloor ? floorInput.trim() : undefined,
+        sceneId,
+        pinX: pin.x,
+        pinY: pin.y,
+        pinZ: pin.z,
+        pinLabel: pin.label ?? undefined,
       });
+      setLocationText(fullText);
+      setAiLocationText(aiText);
       const firstStep = await aiApi.getNextReportQuestion(reportId, memo.trim(), []);
-      addMsgs({
-        role: "locationSaved",
-        label: locationText,
-        lat: coords.lat,
-        lng: coords.lng,
-      });
+      addMsgs({ role: "locationSaved", label: fullText, sceneId, pin });
       setStage("afterLocation");
       setTimeout(() => startQuestions(firstStep), 900);
     } catch (error) {
@@ -391,7 +478,7 @@ export default function ReportFlowPage() {
       }
       const generated = await aiApi.createReportDraft(
         reportId,
-        locationText,
+        aiLocationText || locationText,
         memo.trim(),
         nextAnswers,
       );
@@ -428,13 +515,13 @@ export default function ReportFlowPage() {
     setApiError(null);
     try {
       await reportApi.patch(reportId, {
-        summary: draftSummary || `${locationText} 안전 신고`,
+        summary: draftSummary || `${aiLocationText || locationText} 민원 신고`,
         description: `${hazardContent}${IMPROVEMENT_MARKER}${improvement}`,
         reporterType: "REAL_NAME",
       });
       await reportApi.generateReportFile(reportId);
       await reportApi.submit(reportId);
-      navigate("/map");
+      navigate("/home");
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "신고를 전송하지 못했습니다.");
     } finally {
@@ -575,9 +662,12 @@ export default function ReportFlowPage() {
   const progress =
     stage === "photo" || stage === "compose"
       ? "사진 · 설명 1/4"
-      : stage === "buildingSelect" ||
-          stage === "locationInput" ||
-          stage === "locationConfirm" ||
+      : stage === "region" ||
+          stage === "housing" ||
+          stage === "spaceKind" ||
+          stage === "unitInput" ||
+          stage === "commonSelect" ||
+          stage === "scene" ||
           stage === "afterLocation"
         ? "신고 위치 2/4"
         : "맞춤 질문 3/4";
@@ -660,7 +750,7 @@ export default function ReportFlowPage() {
                   <br />
                   <span className="font-semibold">{m.label}</span>
                 </p>
-                <StaticMap lat={m.lat} lng={m.lng} />
+                <SceneViewer sceneId={m.sceneId} mode="view" pin={m.pin} className="h-[200px] w-[300px] border border-[#e9e9e9]" />
               </div>
             );
           }
@@ -760,40 +850,47 @@ export default function ReportFlowPage() {
         </div>
       )}
 
-      {stage === "buildingSelect" && (
+      {stage === "region" && (
         <div className="p-2.5 shrink-0">
           <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5 flex flex-col gap-3">
-            <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
-              신고할 건물을 선택해 주세요.
-            </p>
-            <select
-              className="select-chevron w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none"
-              value={isOtherLocation ? OTHER_LOCATION_VALUE : selectedBuilding?.id ?? ""}
-              disabled={buildingsLoading}
-              onChange={(e) => {
-                if (e.target.value === OTHER_LOCATION_VALUE) {
-                  setSelectedBuilding(null);
-                  setIsOtherLocation(true);
-                  return;
-                }
-                const building = buildings.find((item) => item.id === Number(e.target.value)) ?? null;
-                setSelectedBuilding(building);
-                setIsOtherLocation(false);
-              }}
-            >
-              <option value="">
-                {buildingsLoading ? "건물 목록을 불러오는 중..." : "건물을 선택해 주세요"}
-              </option>
-              {buildings.map((building) => (
-                <option key={building.id} value={building.id}>
-                  {building.name}
-                </option>
-              ))}
-              <option value={OTHER_LOCATION_VALUE}>기타 (건물이 아닌 위치)</option>
-            </select>
+            <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">지역을 선택해 주세요.</p>
+            <div className="flex gap-2">
+              <select
+                aria-label="시·도"
+                className="select-chevron w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none"
+                value={sido}
+                disabled={listLoading}
+                onChange={(e) => {
+                  setSido(e.target.value);
+                  const next = regions.find((region) => region.sido === e.target.value);
+                  setSigungu(next?.sigungus.length === 1 ? next.sigungus[0] : "");
+                }}
+              >
+                <option value="">{listLoading ? "불러오는 중..." : "시·도"}</option>
+                {regions.map((region) => (
+                  <option key={region.sido} value={region.sido}>
+                    {region.sido}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="시·군·구"
+                className="select-chevron w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none"
+                value={sigungu}
+                disabled={!sido}
+                onChange={(e) => setSigungu(e.target.value)}
+              >
+                <option value="">시·군·구</option>
+                {(regions.find((region) => region.sido === sido)?.sigungus ?? []).map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
-              onClick={handleBuildingSelect}
-              disabled={(!selectedBuilding && !isOtherLocation) || buildingsLoading}
+              onClick={() => void handleRegionSelect()}
+              disabled={!sido || !sigungu || submitting}
               className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
               style={{ backgroundColor: SOGANG_RED }}
             >
@@ -803,18 +900,176 @@ export default function ReportFlowPage() {
         </div>
       )}
 
-      {(stage === "locationInput" || stage === "afterLocation") && (
+      {stage === "housing" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5 flex flex-col gap-3">
+            <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">청년주택을 선택해 주세요.</p>
+            <div className="flex flex-col gap-2">
+              {housings.map((housing) => (
+                <button
+                  key={housing.id}
+                  onClick={() => setSelectedHousing(housing)}
+                  className={`w-full rounded-[10px] border bg-white px-4 py-3 text-left transition active:scale-[0.99] ${
+                    selectedHousing?.id === housing.id ? "border-[#a92614]" : "border-[#E3E3E3]"
+                  }`}
+                >
+                  <span className="block text-sm font-semibold text-[#262626] tracking-[-0.28px]">{housing.name}</span>
+                  {housing.address && (
+                    <span className="block text-xs text-[#7b7b7b] tracking-[-0.24px]">{housing.address}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleHousingSelect}
+              disabled={!selectedHousing}
+              className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
+              style={{ backgroundColor: SOGANG_RED }}
+            >
+              다음
+            </button>
+          </div>
+        </div>
+      )}
+
+      {stage === "spaceKind" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5 flex flex-col gap-3">
+            <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">신고할 곳을 골라 주세요.</p>
+            <div className="flex gap-2.5">
+              {([
+                ["UNIT", "세대 내부", "우리 집 안 (욕실, 주방, 방 등)"],
+                ["COMMON", "공용공간", "주차장, 피트니스, 세탁실, 복도 등"],
+              ] as const).map(([kind, label, hint]) => (
+                <button
+                  key={kind}
+                  onClick={() => void handleSpaceKindSelect(kind)}
+                  disabled={submitting}
+                  className="flex-1 rounded-[10px] border border-[#d9d9d9] bg-white px-4 py-4 text-left transition active:bg-[#F5F5F5] active:border-[#262626] active:scale-[0.98]"
+                >
+                  <span className="block text-sm font-semibold text-[#262626] tracking-[-0.28px]">{label}</span>
+                  <span className="mt-1 block text-xs text-[#7b7b7b] tracking-[-0.24px] leading-[1.4]">{hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stage === "unitInput" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5 flex flex-col gap-3">
+            <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">동·호수를 입력해 주세요.</p>
+            <div className="flex gap-2">
+              <div className="w-[38%]">
+                <input
+                  className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]"
+                  inputMode="numeric"
+                  placeholder="동 (없으면 비움)"
+                  value={dongInput}
+                  onChange={(e) => setDongInput(e.target.value)}
+                />
+              </div>
+              <div className="flex-1">
+                <input
+                  autoFocus
+                  className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]"
+                  inputMode="numeric"
+                  placeholder="호수 (예: 1203)"
+                  value={hoInput}
+                  onChange={(e) => setHoInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleUnitSubmit();
+                  }}
+                />
+              </div>
+            </div>
+            <button
+              onClick={() => void handleUnitSubmit()}
+              disabled={!hoInput.trim() || submitting}
+              className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
+              style={{ backgroundColor: SOGANG_RED }}
+            >
+              {submitting ? "세대를 찾는 중..." : "3D 평면 보기"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {stage === "commonSelect" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5 flex flex-col gap-3">
+            <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">공용공간을 선택해 주세요.</p>
+            <div className="flex flex-wrap gap-2">
+              {spaces.map((space) => (
+                <button
+                  key={space.code}
+                  onClick={() => setSelectedSpace(space)}
+                  className={`rounded-full border bg-white px-3.5 py-2 text-sm tracking-[-0.28px] transition active:scale-95 ${
+                    selectedSpace?.code === space.code
+                      ? "border-[#a92614] font-semibold text-[#a92614]"
+                      : "border-[#E3E3E3] text-[#262626]"
+                  }`}
+                >
+                  {space.name}
+                </button>
+              ))}
+            </div>
+            {selectedSpace?.requiresFloor && (
+              <input
+                className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]"
+                inputMode="numeric"
+                placeholder="몇 층인가요? (예: 12)"
+                value={floorInput}
+                onChange={(e) => setFloorInput(e.target.value)}
+              />
+            )}
+            <button
+              onClick={handleSpaceSubmit}
+              disabled={!selectedSpace || (selectedSpace.requiresFloor && !floorInput.trim())}
+              className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
+              style={{ backgroundColor: SOGANG_RED }}
+            >
+              3D 평면 보기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {stage === "scene" && sceneId && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/80 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-3 flex flex-col gap-2.5">
+            <SceneViewer sceneId={sceneId} mode="pick" pin={pin} onPin={setPin} className="h-[46svh] w-full border border-[#e9e9e9]" />
+            <div className="flex items-center gap-2 px-1">
+              <MapPin className="size-4 shrink-0 text-[#a92614]" />
+              <span className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
+                {pin ? `${pin.label ?? "선택한 위치"} 부근에 핀을 꽂았어요` : "문제가 있는 위치를 눌러 주세요"}
+              </span>
+            </div>
+            <input
+              className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]"
+              placeholder="위치를 더 설명해 주세요 (선택, 예: 세면대 아래)"
+              value={locationDetail}
+              onChange={(e) => setLocationDetail(e.target.value)}
+            />
+            <button
+              onClick={() => void handleSceneConfirm()}
+              disabled={!pin || submitting}
+              className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
+              style={{ backgroundColor: SOGANG_RED }}
+            >
+              {submitting ? "저장 중..." : "이 위치로 저장"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {stage === "afterLocation" && (
         <div className="p-2.5 shrink-0">
           <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] flex items-end">
             <AutoTextarea
               className="flex-1 min-w-0 p-5 bg-transparent outline-none resize-none text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] placeholder:text-[#7b7b7b] max-h-[140px]"
-              placeholder={
-                stage === "locationInput"
-                  ? selectedBuilding
-                    ? "세부 위치를 입력해주세요. (예: 3관 입구 앞)"
-                    : "세부 위치를 입력해주세요. (예: 정문 앞 횡단보도)"
-                  : "내용을 입력해주세요."
-              }
+              placeholder="내용을 입력해주세요."
               value={input}
               onChange={setInput}
               onEnter={handleInputSend}
@@ -827,66 +1082,6 @@ export default function ReportFlowPage() {
                 <ArrowUp className="w-6 h-6 text-white" />
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {stage === "locationConfirm" && (
-        <div className="p-2.5 shrink-0">
-          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] pt-5 pb-4 px-5 flex flex-col gap-2.5 items-center">
-            <p className="text-xs text-[#555555] tracking-[-0.24px] leading-[1.4] text-center">
-              아래 지도에서 위치를 직접 이동할 수 있어요.
-            </p>
-            <MapPreview
-              // 검증된 DB 좌표가 있는 건물은 그 좌표를 초기 위치의 기준으로 쓴다.
-              // 좌표가 없는 건물·기타 위치만 입력 문구로 장소를 검색한다.
-              query={
-                isOtherLocation || selectedBuilding?.lat == null || selectedBuilding.lng == null
-                  ? locationQuery
-                  : ""
-              }
-              fallbackQuery={
-                !isOtherLocation && (selectedBuilding?.lat == null || selectedBuilding.lng == null)
-                  ? selectedBuilding?.name
-                  : undefined
-              }
-              fallbackLat={selectedBuilding?.lat ?? SOGANG_CENTER.lat}
-              fallbackLng={selectedBuilding?.lng ?? SOGANG_CENTER.lng}
-              onCoordsChange={setCoords}
-            />
-            <div className="flex items-center gap-2 justify-center w-full">
-              {editingLoc ? (
-                <input
-                  autoFocus
-                  className="text-sm font-medium text-[#262626] tracking-[-0.28px] text-center outline-none bg-transparent border-b-2 pb-0.5"
-                  style={{ borderColor: SOGANG_RED, minWidth: 140 }}
-                  value={locationText}
-                  onChange={(e) => setLocationText(e.target.value)}
-                  onBlur={() => setEditingLoc(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") setEditingLoc(false);
-                  }}
-                />
-              ) : (
-                <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] text-center">
-                  {locationText}
-                </span>
-              )}
-              <button
-                onClick={() => setEditingLoc(true)}
-                className="p-1 transition active:scale-90"
-              >
-                <Pencil className="w-4 h-4 text-[#262626]" />
-              </button>
-            </div>
-            <button
-              onClick={handleLocationConfirm}
-              disabled={submitting}
-              className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition active:brightness-90"
-              style={{ backgroundColor: SOGANG_RED }}
-            >
-              {submitting ? "저장 중..." : "이 위치로 저장"}
-            </button>
           </div>
         </div>
       )}
@@ -1073,126 +1268,6 @@ function ProposalEditableField({
           {value}
         </p>
       )}
-    </div>
-  );
-}
-
-// ─── 지도 프리뷰 (고정 중앙 핀 + 드래그로 좌표 변경) ───
-function MapPreview({
-  query,
-  fallbackQuery,
-  fallbackLat,
-  fallbackLng,
-  onCoordsChange,
-}: {
-  query: string;
-  fallbackQuery?: string;
-  fallbackLat: number;
-  fallbackLng: number;
-  onCoordsChange: (c: { lat: number; lng: number }) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const hasMapKey = Boolean(
-    import.meta.env.VITE_KAKAO_APP_KEY &&
-      import.meta.env.VITE_KAKAO_APP_KEY !== "your-kakao-javascript-key",
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    ensureKakao(() => {
-      if (cancelled || !ref.current) return;
-      const w = window as any;
-      const map = new w.kakao.maps.Map(ref.current, {
-        center: new w.kakao.maps.LatLng(fallbackLat, fallbackLng),
-        level: 3,
-      });
-      setTimeout(() => map.relayout(), 0);
-      onCoordsChange({ lat: fallbackLat, lng: fallbackLng });
-
-      // 답변 위치로 지도 중심 이동
-      if (query && w.kakao.maps.services) {
-        const ps = new w.kakao.maps.services.Places();
-        const moveToResult = (keyword: string, retryWithBuildingName: boolean) => ps.keywordSearch(keyword, (data: any[], status: string) => {
-          if (cancelled) return;
-          if (status === w.kakao.maps.services.Status.OK && data[0]) {
-            const c = new w.kakao.maps.LatLng(data[0].y, data[0].x);
-            map.setCenter(c);
-            onCoordsChange({ lat: +data[0].y, lng: +data[0].x });
-          } else if (retryWithBuildingName && fallbackQuery && fallbackQuery !== keyword) {
-            moveToResult(fallbackQuery, false);
-          }
-        });
-        moveToResult(query, true);
-      }
-
-      // 드래그 종료 시 중심 좌표 = 신고 좌표
-      w.kakao.maps.event.addListener(map, "dragend", () => {
-        const c = map.getCenter();
-        onCoordsChange({ lat: c.getLat(), lng: c.getLng() });
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [fallbackLat, fallbackLng, query, fallbackQuery, onCoordsChange]);
-
-  return (
-    <div className="isolate relative w-full h-[200px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
-      <div ref={ref} className="w-full h-full bg-[#e9e9e9]" />
-      {!hasMapKey && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#e9e9e9] px-6 text-center text-xs text-[#555555]">
-          카카오 지도 키 미설정 상태입니다. 기본 캠퍼스 좌표로 신고를 계속할 수 있어요.
-        </div>
-      )}
-      {/* 고정 중앙 핀 (지도를 움직여 좌표 변경) */}
-      <div className="absolute z-10 left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
-        <MapPin className="w-8 h-9" style={{ color: SOGANG_RED, fill: SOGANG_RED }} />
-      </div>
-    </div>
-  );
-}
-
-// ─── 정적 지도 (저장된 위치 · 채팅 로그용) ───
-function StaticMap({ lat, lng }: { lat: number; lng: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const hasMapKey = Boolean(
-    import.meta.env.VITE_KAKAO_APP_KEY &&
-      import.meta.env.VITE_KAKAO_APP_KEY !== "your-kakao-javascript-key",
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    ensureKakao(() => {
-      if (cancelled || !ref.current) return;
-      const w = window as any;
-      const center = new w.kakao.maps.LatLng(lat, lng);
-      const map = new w.kakao.maps.Map(ref.current, {
-        center,
-        level: 3,
-        draggable: false,
-      });
-      map.setZoomable(false);
-      setTimeout(() => {
-        map.relayout();
-        map.setCenter(center);
-      }, 0);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [lat, lng]);
-
-  return (
-    <div className="isolate relative w-[300px] max-w-full h-[191px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
-      <div ref={ref} className="w-full h-full bg-[#e9e9e9]" />
-      {!hasMapKey && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#e9e9e9] px-6 text-center text-xs text-[#555555]">
-          지도 키 미설정 · 저장 좌표 {lat.toFixed(4)}, {lng.toFixed(4)}
-        </div>
-      )}
-      <div className="absolute z-10 left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
-        <MapPin className="w-8 h-9" style={{ color: SOGANG_RED, fill: SOGANG_RED }} />
-      </div>
     </div>
   );
 }

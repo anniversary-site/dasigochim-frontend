@@ -13,14 +13,14 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 로그인 성공 시 학생은 지도, 관리자는 대시보드로 이동
+  // 로그인 성공 시 입주민은 메인 화면, 관리자는 대시보드로 이동
   const runLogin = useCallback(
     async (request: () => Promise<PrincipalType>) => {
       setSubmitting(true);
       setError(null);
       try {
         const principalType = await request();
-        navigate(principalType === "ADMIN" ? "/admin" : "/map", { replace: true });
+        navigate(principalType === "ADMIN" ? "/admin" : "/home", { replace: true });
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "로그인에 실패했습니다.");
         setSubmitting(false);
@@ -41,10 +41,10 @@ export default function LoginPage() {
     <div className="app-shell flex flex-col min-h-dvh px-page">
       {/* Logo Area */}
       <div className="flex-1 flex flex-col items-center justify-center">
-        <img src={logo} alt="안전고래" className="w-[160px] h-[160px] rounded-xl mb-4" />
-        <h1 className="text-2xl font-bold text-text-primary">안전고래</h1>
+        <img src={logo} alt="다시고침" className="w-[160px] h-[160px] rounded-xl mb-4" />
+        <h1 className="text-2xl font-bold text-text-primary">다시고침</h1>
         <p className="mt-2 text-base text-text-secondary">
-          로그인하고 안전 신고를 시작하세요
+          로그인하고 우리 집·공용공간 민원을 신고하세요
         </p>
       </div>
 

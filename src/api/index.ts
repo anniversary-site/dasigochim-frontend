@@ -1,4 +1,4 @@
-// 안전고래 API 클라이언트 — 현재 Spring Boot 응답 계약 기준
+// 다시고침 API 클라이언트 — 현재 Spring Boot 응답 계약 기준
 // 로컬 개발은 Vite의 /api, /files 프록시를 통해 localhost:8080에 연결합니다.
 
 export * from "./http";
@@ -8,7 +8,6 @@ export { reportApi } from "./reports";
 export type { LocationPatch } from "./reports";
 export { aiApi } from "./ai";
 export type {
-  LocationSuggestion,
   TextDraft,
   ReportQuestion,
   ReportQuestionStep,

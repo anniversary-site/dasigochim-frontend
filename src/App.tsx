@@ -6,9 +6,8 @@ import type { PrincipalType } from './api/http'
 import { AuthContext } from './auth'
 import type { User } from './types'
 import LoginPage from './pages/Login/LoginPage'
-import MapPage from './pages/Map/MapPage'
 import ReportFlowPage from './pages/Report/ReportFlowPage'
-import MyReportsPage from './pages/MyReports/MyReportsPage'
+import HomePage from './pages/Home/HomePage'
 import ProfileSetupPage from './pages/Profile/ProfileSetupPage'
 import UserPageGuard from './pages/UserPageGuard'
 import AdminGuard from './pages/Admin/AdminGuard'
@@ -81,11 +80,13 @@ export default function App() {
   return (
     <AuthContext.Provider value={{ isLoggedIn, isAuthLoading, user, principalType, login, guestLogin, refreshProfile: loadProfile, logout }}>
       <Routes>
-        <Route path="/" element={<Navigate to="/map" replace />} />
+        <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/map" element={<UserPageGuard><MapPage /></UserPageGuard>} />
+        <Route path="/home" element={<UserPageGuard><HomePage /></UserPageGuard>} />
+        {/* 예전 지도·내 신고 주소로 들어와도 메인으로 보낸다 */}
+        <Route path="/map" element={<Navigate to="/home" replace />} />
         <Route path="/report" element={<UserPageGuard><ReportFlowPage /></UserPageGuard>} />
-        <Route path="/my-reports" element={<UserPageGuard><MyReportsPage /></UserPageGuard>} />
+        <Route path="/my-reports" element={<Navigate to="/home" replace />} />
         <Route path="/profile" element={<UserPageGuard><ProfileSetupPage /></UserPageGuard>} />
         <Route path="/admin" element={<AdminGuard><AdminDashboardPage /></AdminGuard>} />
         <Route path="/admin/reports/:id" element={<AdminGuard><AdminReportDetailPage /></AdminGuard>} />

@@ -5,7 +5,8 @@ import DepartmentChip from "@/components/common/DepartmentChip";
 import MyBadge from "@/components/common/MyBadge";
 import ReportStatusBadge from "@/components/common/ReportStatusBadge";
 import { resolveApiAssetUrl } from "@/api/http";
-import type { ReportStatus } from "@/types";
+import type { ReportSpace, ReportStatus } from "@/types";
+import SceneViewer from "@/components/scene/SceneViewer";
 
 export interface ReportDetailData {
   title: string;
@@ -14,6 +15,8 @@ export interface ReportDetailData {
   status: ReportStatus;
   date: string;
   imageUrl?: string;
+  /** 3D 장면과 핀. 위치를 3D 로 찍은 신고만 있다 */
+  space?: ReportSpace | null;
 }
 
 interface ReportDetailViewProps {
@@ -22,7 +25,7 @@ interface ReportDetailViewProps {
   showMyBadge?: boolean;
 }
 
-/** 신고 상세 (Figma 155:1413) — 지도 시트 전체화면과 내 신고에서 공용 */
+/** 신고 상세 (Figma 155:1413) — 메인 화면의 내 신고·다른 신고에서 공용 */
 export default function ReportDetailView({ report, showMyBadge = false }: ReportDetailViewProps) {
   const { hazard, improvement } = splitDescription(report.description);
 
@@ -66,8 +69,16 @@ export default function ReportDetailView({ report, showMyBadge = false }: Report
 
         <div className="flex flex-col gap-5 mt-1">
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-neutral-400 tracking-[-0.28px]">위험장소</span>
+            <span className="text-sm font-semibold text-neutral-400 tracking-[-0.28px]">신고 위치</span>
             <span className="text-sm font-medium text-neutral-800 tracking-[-0.28px] leading-[1.4]">{report.title}</span>
+            {report.space?.sceneId && report.space.pin && (
+              <SceneViewer
+                sceneId={report.space.sceneId}
+                mode="view"
+                pin={report.space.pin}
+                className="mt-1 h-[240px] w-full border border-gray-200"
+              />
+            )}
           </div>
           <div className="flex flex-col gap-2">
             <span className="text-sm font-semibold text-neutral-400 tracking-[-0.28px]">

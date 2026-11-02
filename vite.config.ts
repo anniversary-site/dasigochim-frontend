@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
         target: backendProxyTarget,
         changeOrigin: true,
       },
-      // 안전고래 백엔드 (Spring Boot) — /api/v1/** → 백엔드로 프록시 (CORS 회피)
+      // 다시고침 백엔드 (Spring Boot) — /api/v1/** → 백엔드로 프록시 (CORS 회피)
       // 백엔드 포트/주소가 다르면 target만 수정
       '/api/v1': {
         target: backendProxyTarget,

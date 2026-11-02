@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/auth";
 
-/** 관리자 JWT는 학생용 화면을 렌더링하지 않고 관리자 대시보드로 보낸다. */
+/** 관리자 JWT는 입주민용 화면을 렌더링하지 않고 관리자 대시보드로 보낸다. */
 export default function UserPageGuard({ children }: { children: ReactNode }) {
   const { isAuthLoading, principalType } = useAuth();
 

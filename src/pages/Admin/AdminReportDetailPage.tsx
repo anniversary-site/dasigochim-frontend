@@ -7,6 +7,7 @@ import type { Report, ReportStatus, RiskLevel } from "@/types";
 import { CHANGEABLE_STATUSES, STATUS_LABEL, TIMELINE_STEPS } from "@/constants/adminStatus";
 import { RISK_LABEL } from "@/constants/risk";
 import { splitDescription } from "@/utils/reportDescription";
+import SceneViewer from "@/components/scene/SceneViewer";
 import RiskBadge from "@/components/common/RiskBadge";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
 
@@ -122,7 +123,8 @@ export default function AdminReportDetailPage() {
   const { hazard, improvement } = splitDescription(report.description ?? "");
   const currentIndex = STATUS_ORDER.indexOf(report.status);
   const resolved = report.status === "RESOLVED";
-  const title = report.locationDescription ?? report.building?.name ?? report.summary ?? "안전 신고";
+  const title = report.locationDescription ?? report.building?.name ?? report.summary ?? "공간 민원";
+  const space = report.space;
 
   return (
     <div className="min-h-dvh bg-sogang-10 px-9 py-8">
@@ -163,12 +165,24 @@ export default function AdminReportDetailPage() {
               <h1 className="mt-3 text-[17px] font-bold tracking-[-0.4px] text-neutral-800">{title}</h1>
 
               <div className="mt-5 flex flex-col gap-4">
-                <Section label="위험장소" value={report.building?.name ?? title} />
+                <Section label="신고 위치" value={title} />
                 <Section label="안전·보건 유해·위험 내용" value={hazard || "내용 없음"} />
                 {improvement && <Section label="개선 제안 사항" value={improvement} />}
               </div>
             </div>
           </div>
+
+          {space?.sceneId && space.pin && (
+            <div className="mt-8 border-t border-gray-200 pt-5">
+              <p className="text-xs font-medium tracking-[-0.4px] text-neutral-400">
+                3D 위치 · {space.type === "UNIT" ? `세대 내부${space.unitType ? ` (${space.unitType} TYPE)` : ""}` : space.name ?? "공용공간"}
+                {report.floor ? ` · ${report.floor}${/^\d+$/.test(report.floor) ? "층" : ""}` : ""}
+                {report.room ? ` · ${space.dong ? `${space.dong}동 ` : ""}${report.room}호` : ""}
+                {space.pin.label ? ` · ${space.pin.label} 부근` : ""}
+              </p>
+              <SceneViewer sceneId={space.sceneId} mode="view" pin={space.pin} className="mt-3 h-[360px] w-full border border-gray-200" />
+            </div>
+          )}
 
           <div className="mt-8 grid grid-cols-4 gap-6 border-t border-gray-200 pt-5">
             <Field label="신고자" value={report.reporterName ?? "-"} />

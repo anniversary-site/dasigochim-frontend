@@ -11,7 +11,6 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminRiskCell from "@/components/admin/AdminRiskCell";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminMapView from "@/components/admin/AdminMapView";
 import NotificationItem from "@/components/notification/NotificationItem";
 
 const PAGE_SIZE = 20;
@@ -39,7 +38,6 @@ export default function AdminDashboardPage() {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
-  const [view, setView] = useState<"reports" | "map">("reports");
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const {
@@ -91,7 +89,6 @@ export default function AdminDashboardPage() {
   }, [status, departmentId, query, pageIndex]);
 
   const changeFilter = useCallback((next: () => void) => {
-    setView("reports");
     setLoading(true);
     setPageIndex(0);
     next();
@@ -105,16 +102,14 @@ export default function AdminDashboardPage() {
       <AdminSidebar
         departments={departments}
         selectedId={departmentId}
-        activeView={view}
         adminName={adminName}
         onSelect={(id) => changeFilter(() => setDepartmentId(id))}
-        onMapSelect={() => setView("map")}
         onLogout={logout}
       />
 
       <main className="flex min-w-0 flex-1 flex-col px-9 py-8">
         <div className="relative flex items-center justify-between">
-          <h1 className="text-[17px] font-bold tracking-[-0.4px] text-neutral-800">{view === "map" ? "신고 지도" : "신고 목록"}</h1>
+          <h1 className="text-[17px] font-bold tracking-[-0.4px] text-neutral-800">신고 목록</h1>
           <button
             type="button"
             aria-label={notificationsOpen ? "알림 닫기" : "알림"}
@@ -158,10 +153,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {view === "map" ? (
-          <AdminMapView onSelectReport={(reportId) => navigate(`/admin/reports/${reportId}`)} />
-        ) : (
-          <>
+        <>
             {/* 요약 */}
             <div className="mt-5 flex gap-5">
               <AdminStatCard label="접수완료" value={summary?.received ?? "-"} />
@@ -295,8 +287,7 @@ export default function AdminDashboardPage() {
             </div>
           )}
             </div>
-          </>
-        )}
+        </>
       </main>
     </div>
   );
