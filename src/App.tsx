@@ -74,8 +74,8 @@ export default function App() {
 
   useEffect(() => {
     const handleUnauthorized = () => logout()
-    window.addEventListener('safewhale:unauthorized', handleUnauthorized)
-    return () => window.removeEventListener('safewhale:unauthorized', handleUnauthorized)
+    window.addEventListener('dasigochim:unauthorized', handleUnauthorized)
+    return () => window.removeEventListener('dasigochim:unauthorized', handleUnauthorized)
   }, [logout])
 
   return (

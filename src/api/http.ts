@@ -45,9 +45,9 @@ export function resolveApiAssetUrl(url: string): string {
 }
 
 // ── JWT 저장소 (Access/Refresh) ──
-const ACCESS_KEY = "safewhale_access_token";
-const REFRESH_KEY = "safewhale_refresh_token";
-const PRINCIPAL_TYPE_KEY = "safewhale_principal_type";
+const ACCESS_KEY = "dasigochim_access_token";
+const REFRESH_KEY = "dasigochim_refresh_token";
+const PRINCIPAL_TYPE_KEY = "dasigochim_principal_type";
 
 export type PrincipalType = "USER" | "ADMIN";
 
@@ -106,7 +106,7 @@ async function requestWithRetry<T>(method: string, path: string, body: Body, ret
       return requestWithRetry<T>(method, path, body, false);
     } catch {
       tokenStore.clear();
-      window.dispatchEvent(new Event("safewhale:unauthorized"));
+      window.dispatchEvent(new Event("dasigochim:unauthorized"));
     }
   }
 

@@ -79,14 +79,14 @@ export default function AdminMapView({ onSelectReport }: AdminMapViewProps) {
       return;
     }
 
-    const existing = document.querySelector<HTMLScriptElement>('script[data-safewhale-kakao-map="true"]');
+    const existing = document.querySelector<HTMLScriptElement>('script[data-dasigochim-kakao-map="true"]');
     if (existing) {
       existing.addEventListener("load", () => window.kakao.maps.load(createMap), { once: true });
       return;
     }
 
     const script = document.createElement("script");
-    script.dataset.safewhaleKakaoMap = "true";
+    script.dataset.dasigochimKakaoMap = "true";
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`;
     script.async = true;
     script.onload = () => window.kakao.maps.load(createMap);
