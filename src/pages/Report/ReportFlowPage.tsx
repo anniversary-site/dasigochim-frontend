@@ -21,6 +21,7 @@ type Stage =
   | "spaceKind"
   | "unitInput"
   | "commonSelect"
+  | "manualLocation"
   | "scene"
   | "afterLocation"
   | "question"
@@ -98,6 +99,7 @@ export default function ReportFlowPage() {
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [pin, setPin] = useState<ScenePin | null>(null);
   const [locationDetail, setLocationDetail] = useState("");
+  const [manualSpace, setManualSpace] = useState("");
   // 신고서·관리자용 전체 위치 / AI 에 넘기는 위치(호수를 뺀다 — 초안 문장에 호수가 남지 않게)
   const [locationText, setLocationText] = useState("");
   const [aiLocationText, setAiLocationText] = useState("");
@@ -141,11 +143,6 @@ export default function ReportFlowPage() {
         const items = await buildingApi.regions();
         if (cancelled) return;
         setRegions(items);
-        // 선택지가 하나뿐이면 미리 골라 둔다.
-        if (items.length === 1) {
-          setSido(items[0].sido);
-          if (items[0].sigungus.length === 1) setSigungu(items[0].sigungus[0]);
-        }
         setApiError(null);
       } catch (error) {
         if (!cancelled) setApiError(error instanceof Error ? error.message : "지역 목록을 불러오지 못했습니다.");
@@ -286,7 +283,7 @@ export default function ReportFlowPage() {
           role: "ai",
           text: items.length
             ? `${sigungu}의 청년주택 중 어디인가요?`
-            : `${sigungu}에는 아직 등록된 청년주택이 없어요. 다른 지역을 골라 주세요.`,
+            : `${sido} ${sigungu}에는 아직 등록된 청년주택이 없어요. 다른 지역을 골라 주세요.`,
         },
       );
       setStage(items.length ? "housing" : "region");
@@ -315,6 +312,22 @@ export default function ReportFlowPage() {
     if (!selectedHousing || submitting) return;
     setSpaceKind(kind);
     setApiError(null);
+    // 3D 평면이 없는 단지는 위치를 글로 받는다.
+    if (!selectedHousing.has3d) {
+      setLocationDetail("");
+      setManualSpace("");
+      addMsgs(
+        { role: "user", text: kind === "UNIT" ? "세대 내부" : "공용공간" },
+        {
+          role: "ai",
+          text: kind === "UNIT"
+            ? "이 청년주택은 아직 3D 평면이 없어요.\n동·호수와 집 안 어디인지 적어 주세요."
+            : "이 청년주택은 아직 3D 평면이 없어요.\n어느 공용공간의 어디인지 적어 주세요.",
+        },
+      );
+      setStage("manualLocation");
+      return;
+    }
     if (kind === "UNIT") {
       addMsgs(
         { role: "user", text: "세대 내부" },
@@ -392,6 +405,47 @@ export default function ReportFlowPage() {
     setDirectActive(false);
     setDirectInput("");
     setStage("question");
+  };
+
+  /** 3D 평면이 없는 단지: 핀 없이 글로 적은 위치를 저장한다. */
+  const handleManualConfirm = async () => {
+    if (!reportId || !selectedHousing || submitting) return;
+    const detail = locationDetail.trim();
+    if (spaceKind === "UNIT" ? !hoInput.trim() : !manualSpace.trim()) return;
+    setSubmitting(true);
+    setApiError(null);
+    const ho = hoInput.trim().replace(/호$/, "");
+    const dong = dongInput.trim().replace(/동$/, "");
+    const unitText = `${dong ? `${dong}동 ` : ""}${ho}호`;
+    const where = spaceKind === "UNIT" ? unitText : manualSpace.trim();
+    const fullText = `${selectedHousing.name} ${where}${detail ? ` · ${detail}` : ""}`;
+    const aiText = spaceKind === "UNIT"
+      ? `${selectedHousing.name} 세대 내부${detail ? ` · ${detail}` : ""}`
+      : fullText;
+    try {
+      await reportApi.patchLocation(reportId, {
+        buildingId: selectedHousing.id,
+        locationDescription: fullText,
+        indoor: true,
+        spaceType: spaceKind,
+        spaceName: spaceKind === "COMMON" ? manualSpace.trim() : undefined,
+        dong: spaceKind === "UNIT" ? dong || undefined : undefined,
+        room: spaceKind === "UNIT" ? ho : undefined,
+      });
+      setLocationText(fullText);
+      setAiLocationText(aiText);
+      const firstStep = await aiApi.getNextReportQuestion(reportId, memo.trim(), []);
+      addMsgs(
+        { role: "user", text: `${where}${detail ? ` · ${detail}` : ""}` },
+        { role: "ai", text: `위치를 저장했어요.\n${fullText}` },
+      );
+      setStage("afterLocation");
+      setTimeout(() => startQuestions(firstStep), 900);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : "위치를 저장하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSceneConfirm = async () => {
@@ -667,6 +721,7 @@ export default function ReportFlowPage() {
           stage === "spaceKind" ||
           stage === "unitInput" ||
           stage === "commonSelect" ||
+          stage === "manualLocation" ||
           stage === "scene" ||
           stage === "afterLocation"
         ? "신고 위치 2/4"
@@ -904,7 +959,7 @@ export default function ReportFlowPage() {
         <div className="p-2.5 shrink-0">
           <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5 flex flex-col gap-3">
             <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">청년주택을 선택해 주세요.</p>
-            <div className="flex flex-col gap-2">
+            <div className="flex max-h-[38svh] flex-col gap-2 overflow-y-auto">
               {housings.map((housing) => (
                 <button
                   key={housing.id}
@@ -913,7 +968,15 @@ export default function ReportFlowPage() {
                     selectedHousing?.id === housing.id ? "border-[#a92614]" : "border-[#E3E3E3]"
                   }`}
                 >
-                  <span className="block text-sm font-semibold text-[#262626] tracking-[-0.28px]">{housing.name}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-sm font-semibold text-[#262626] tracking-[-0.28px]">{housing.name}</span>
+                    {housing.has3d && (
+                      <span className="shrink-0 rounded-full bg-[#fbf4f3] px-1.5 py-0.5 text-[10px] font-semibold text-[#a92614]">3D</span>
+                    )}
+                    {housing.supplyStatus && housing.supplyStatus !== "입주" && (
+                      <span className="shrink-0 rounded-full bg-[#f2f2f2] px-1.5 py-0.5 text-[10px] font-medium text-[#7b7b7b]">{housing.supplyStatus}</span>
+                    )}
+                  </span>
                   {housing.address && (
                     <span className="block text-xs text-[#7b7b7b] tracking-[-0.24px]">{housing.address}</span>
                   )}
@@ -1031,6 +1094,42 @@ export default function ReportFlowPage() {
               style={{ backgroundColor: SOGANG_RED }}
             >
               3D 평면 보기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {stage === "manualLocation" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5 flex flex-col gap-3">
+            <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
+              {spaceKind === "UNIT" ? "동·호수와 위치를 적어 주세요." : "공용공간과 위치를 적어 주세요."}
+            </p>
+            {spaceKind === "UNIT" ? (
+              <div className="flex gap-2">
+                <div className="w-[38%]">
+                  <input className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]" inputMode="numeric" placeholder="동 (없으면 비움)" value={dongInput} onChange={(e) => setDongInput(e.target.value)} />
+                </div>
+                <div className="flex-1">
+                  <input autoFocus className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]" inputMode="numeric" placeholder="호수 (예: 1203)" value={hoInput} onChange={(e) => setHoInput(e.target.value)} />
+                </div>
+              </div>
+            ) : (
+              <input autoFocus className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]" placeholder="공용공간 (예: 지하 주차장, 3층 복도)" value={manualSpace} onChange={(e) => setManualSpace(e.target.value)} />
+            )}
+            <input
+              className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]"
+              placeholder={spaceKind === "UNIT" ? "집 안 어디인가요? (예: 욕실 천장)" : "어디쯤인가요? (예: 엘리베이터 앞)"}
+              value={locationDetail}
+              onChange={(e) => setLocationDetail(e.target.value)}
+            />
+            <button
+              onClick={() => void handleManualConfirm()}
+              disabled={submitting || (spaceKind === "UNIT" ? !hoInput.trim() : !manualSpace.trim())}
+              className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
+              style={{ backgroundColor: SOGANG_RED }}
+            >
+              {submitting ? "저장 중..." : "이 위치로 저장"}
             </button>
           </div>
         </div>

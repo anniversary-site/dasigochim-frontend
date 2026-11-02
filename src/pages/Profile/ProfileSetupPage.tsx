@@ -3,7 +3,7 @@ import { ChevronLeft } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { buildingApi, meApi } from "@/api";
 import { useAuth } from "@/auth";
-import type { Building } from "@/types";
+import type { Building, Region } from "@/types";
 
 interface LocationState {
   from?: string;
@@ -15,6 +15,9 @@ export default function ProfileSetupPage() {
   const { isLoggedIn, isAuthLoading, user, refreshProfile } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [sido, setSido] = useState("");
+  const [sigungu, setSigungu] = useState("");
   const [housings, setHousings] = useState<Building[]>([]);
   const [buildingId, setBuildingId] = useState<number | "">("");
   const [dong, setDong] = useState("");
@@ -37,19 +40,36 @@ export default function ProfileSetupPage() {
     setHo(user.ho ?? "");
   }, [user]);
 
+  // 지역 목록과, 이미 등록한 거주지가 있으면 그 지역을 미리 고른다.
+  const residenceId = user?.building?.id;
   useEffect(() => {
     let cancelled = false;
-    buildingApi.list()
-      .then((items) => {
+    Promise.all([buildingApi.regions(), residenceId ? buildingApi.get(residenceId) : Promise.resolve(null)])
+      .then(([items, residence]) => {
         if (cancelled) return;
-        setHousings(items);
-        if (items.length === 1) setBuildingId((current) => current || items[0].id);
+        setRegions(items);
+        if (residence?.sido) setSido(residence.sido);
+        if (residence?.sigungu) setSigungu(residence.sigungu);
       })
+      .catch((cause) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "지역 목록을 불러오지 못했습니다.");
+      });
+    return () => { cancelled = true; };
+  }, [residenceId]);
+
+  useEffect(() => {
+    if (!sido || !sigungu) return;
+    let cancelled = false;
+    buildingApi.list(sido, sigungu)
+      .then((items) => { if (!cancelled) setHousings(items); })
       .catch((cause) => {
         if (!cancelled) setError(cause instanceof Error ? cause.message : "청년주택 목록을 불러오지 못했습니다.");
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [sido, sigungu]);
+
+  const sigungus = regions.find((region) => region.sido === sido)?.sigungus ?? [];
+  const visibleHousings = sido && sigungu ? housings : [];
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -89,6 +109,34 @@ export default function ProfileSetupPage() {
         <form onSubmit={submit} className="mt-10 space-y-5">
           <Field label="이름" value={name} onChange={setName} autoComplete="name" />
           <Field label="연락처" value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" placeholder="예: 010-1234-5678" />
+          <div className="block">
+            <span className="mb-2 block text-sm font-semibold text-neutral-800">거주 지역</span>
+            <div className="flex gap-3">
+              <select
+                aria-label="시·도"
+                value={sido}
+                onChange={(event) => { setSido(event.target.value); setSigungu(""); setBuildingId(""); }}
+                className="select-chevron h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-neutral-800 outline-none transition focus:border-sogang-500"
+              >
+                <option value="">시·도</option>
+                {regions.map((region) => (
+                  <option key={region.sido} value={region.sido}>{region.sido}</option>
+                ))}
+              </select>
+              <select
+                aria-label="시·군·구"
+                value={sigungu}
+                disabled={!sido}
+                onChange={(event) => { setSigungu(event.target.value); setBuildingId(""); }}
+                className="select-chevron h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-neutral-800 outline-none transition focus:border-sogang-500"
+              >
+                <option value="">시·군·구</option>
+                {sigungus.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-neutral-800">거주 청년주택</span>
             <select
@@ -97,8 +145,10 @@ export default function ProfileSetupPage() {
               onChange={(event) => setBuildingId(event.target.value ? Number(event.target.value) : "")}
               className="select-chevron h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-neutral-800 outline-none transition focus:border-sogang-500"
             >
-              <option value="">청년주택을 선택해 주세요</option>
-              {housings.map((housing) => (
+              <option value="">
+                {!sido || !sigungu ? "지역을 먼저 골라 주세요" : visibleHousings.length ? "청년주택을 선택해 주세요" : "이 지역에는 등록된 청년주택이 없어요"}
+              </option>
+              {visibleHousings.map((housing) => (
                 <option key={housing.id} value={housing.id}>{housing.name}</option>
               ))}
             </select>

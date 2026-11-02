@@ -17,6 +17,10 @@ export interface Building {
   address?: string;
   sido?: string | null;
   sigungu?: string | null;
+  /** 공급 단계 (입주 / 준공 / 착공신고 / 인가완료) */
+  supplyStatus?: string | null;
+  /** 세대 표와 3D 평면이 있어 3D 로 위치를 찍을 수 있는 단지 */
+  has3d?: boolean;
 }
 
 export interface Region {
