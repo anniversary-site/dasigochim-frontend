@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil } from "lucide-react";
+import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil, ChevronLeft } from "lucide-react";
 import { useAuth } from "@/auth";
 import { aiApi, buildingApi, reportApi } from "@/api";
 import type { ReportFlowAnswer, ReportQuestionStep } from "@/api";
@@ -54,6 +54,14 @@ function renderEmphasis(text: string, emp: string | string[]) {
   );
 }
 
+/** 뒤로가기로 되돌아갈 지점. 앞으로 넘어가기 직전의 상태를 남긴다. */
+interface Snapshot {
+  stage: Stage;
+  msgCount: number;
+  step: ReportQuestionStep | null;
+  answers: ReportFlowAnswer[];
+}
+
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 type MsgInput = DistributiveOmit<Msg, "id">;
 
@@ -73,6 +81,11 @@ export default function ReportFlowPage() {
   const nextId = () => ++idRef.current;
 
   const [stage, setStage] = useState<Stage>("photo");
+  const [history, setHistory] = useState<Snapshot[]>([]);
+  // 같은 사진을 다시 보내면 중복 업로드하지 않는다.
+  const uploadedPhotoRef = useRef<File | null>(null);
+  // 위치 저장 직후 첫 질문을 띄우는 타이머. 그 사이에 뒤로 가면 취소한다.
+  const questionTimerRef = useRef<number | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -182,7 +195,12 @@ export default function ReportFlowPage() {
   const prevCountRef = useRef(0);
   const anchorIdRef = useRef<number | null>(null);
   useEffect(() => {
-    const start = messages.length < prevCountRef.current ? 0 : prevCountRef.current;
+    // 뒤로가기로 줄어든 경우에는 goBack 이 기준점을 정해 둔다.
+    if (messages.length < prevCountRef.current) {
+      prevCountRef.current = messages.length;
+      return;
+    }
+    const start = prevCountRef.current;
     prevCountRef.current = messages.length;
     const first = messages[start];
     // 내가 보낸 것(답변·사진)만 상단으로 올린다. AI 답변은 그 아래에 그대로 붙는다.
@@ -224,6 +242,40 @@ export default function ReportFlowPage() {
   const addMsgs = (...msgs: MsgInput[]) =>
     setMessages((p) => [...p, ...msgs.map((m) => ({ ...m, id: nextId() }) as Msg)]);
 
+  const snapshot = (): Snapshot => ({ stage, msgCount: messages.length, step, answers });
+
+  const moveTo = (next: Stage, from: Snapshot) => {
+    setHistory((h) => [...h, from]);
+    setStage(next);
+  };
+
+  const goBack = () => {
+    if (submitting || history.length === 0) return;
+    const target = history[history.length - 1];
+    if (questionTimerRef.current != null) {
+      window.clearTimeout(questionTimerRef.current);
+      questionTimerRef.current = null;
+    }
+    // 사진 단계로 돌아가면 사진을 새로 고를 수 있게 만들어 둔 초안을 지운다.
+    if (target.stage === "photo" && reportId) {
+      void reportApi.deleteDraft(reportId).catch(() => undefined);
+      setReportId(null);
+      uploadedPhotoRef.current = null;
+    }
+    setHistory((h) => h.slice(0, -1));
+    const remaining = messages.slice(0, target.msgCount);
+    // 남은 대화에서 마지막으로 내가 보낸 말(사진·답변) 높이로 스크롤을 맞춘다.
+    const lastMine = [...remaining].reverse().find((m) => m.role === "user" || m.role === "photo");
+    anchorIdRef.current = lastMine?.id ?? null;
+    setMessages(remaining);
+    setStep(target.step);
+    setAnswers(target.answers);
+    setDirectActive(false);
+    setDirectInput("");
+    setApiError(null);
+    setStage(target.stage);
+  };
+
   const handleClose = () => {
     if (reportId) void reportApi.deleteDraft(reportId).catch(() => undefined);
     navigate("/home");
@@ -234,11 +286,14 @@ export default function ReportFlowPage() {
     if (!file) return;
     setPhotoFile(file);
     setPhotoUrl(URL.createObjectURL(file));
-    setStage("compose");
+    moveTo("compose", snapshot());
+    // 같은 파일을 다시 골라도 change 가 일어나게 비워 둔다.
+    e.target.value = "";
   };
 
   const handleComposeSend = async () => {
     if (!memo.trim() || !photoFile || submitting) return;
+    const from = snapshot();
     setSubmitting(true);
     setApiError(null);
     try {
@@ -246,7 +301,10 @@ export default function ReportFlowPage() {
         ? { id: reportId }
         : await reportApi.createDraft();
       setReportId(draftReport.id);
-      await reportApi.uploadPhotos(draftReport.id, [photoFile]);
+      if (uploadedPhotoRef.current !== photoFile) {
+        await reportApi.uploadPhotos(draftReport.id, [photoFile]);
+        uploadedPhotoRef.current = photoFile;
+      }
       addMsgs(
         { role: "photo" },
         { role: "user", text: memo.trim() },
@@ -254,7 +312,7 @@ export default function ReportFlowPage() {
         { role: "ai", text: "먼저 어느 지역의 청년주택인지 골라 주세요." },
       );
       setListLoading(true);
-      setStage("region");
+      moveTo("region", from);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "사진을 저장하지 못했습니다.");
     } finally {
@@ -271,6 +329,7 @@ export default function ReportFlowPage() {
 
   const handleRegionSelect = async () => {
     if (!sido || !sigungu || submitting) return;
+    const from = snapshot();
     setSubmitting(true);
     setApiError(null);
     try {
@@ -286,7 +345,7 @@ export default function ReportFlowPage() {
             : `${sido} ${sigungu}에는 아직 등록된 청년주택이 없어요. 다른 지역을 골라 주세요.`,
         },
       );
-      setStage(items.length ? "housing" : "region");
+      if (items.length) moveTo("housing", from);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "청년주택 목록을 불러오지 못했습니다.");
     } finally {
@@ -296,6 +355,7 @@ export default function ReportFlowPage() {
 
   const handleHousingSelect = () => {
     if (!selectedHousing) return;
+    const from = snapshot();
     // 내 거주지와 같은 단지면 동·호수를 미리 채워 둔다.
     if (user?.building?.id === selectedHousing.id) {
       setDongInput(user.dong ?? "");
@@ -305,11 +365,12 @@ export default function ReportFlowPage() {
       { role: "user", text: selectedHousing.name },
       { role: "ai", text: "신고할 곳이 세대 안인가요, 공용공간인가요?" },
     );
-    setStage("spaceKind");
+    moveTo("spaceKind", from);
   };
 
   const handleSpaceKindSelect = async (kind: SpaceType) => {
     if (!selectedHousing || submitting) return;
+    const from = snapshot();
     setSpaceKind(kind);
     setApiError(null);
     // 3D 평면이 없는 단지는 위치를 글로 받는다.
@@ -325,7 +386,7 @@ export default function ReportFlowPage() {
             : "이 청년주택은 아직 3D 평면이 없어요.\n어느 공용공간의 어디인지 적어 주세요.",
         },
       );
-      setStage("manualLocation");
+      moveTo("manualLocation", from);
       return;
     }
     if (kind === "UNIT") {
@@ -333,7 +394,7 @@ export default function ReportFlowPage() {
         { role: "user", text: "세대 내부" },
         { role: "ai", text: "동·호수를 알려주세요. 해당 세대 타입의 3D 평면을 보여드릴게요." },
       );
-      setStage("unitInput");
+      moveTo("unitInput", from);
       return;
     }
     setSubmitting(true);
@@ -345,7 +406,7 @@ export default function ReportFlowPage() {
         { role: "user", text: "공용공간" },
         { role: "ai", text: "어느 공용공간인가요?" },
       );
-      setStage("commonSelect");
+      moveTo("commonSelect", from);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "공용공간 목록을 불러오지 못했습니다.");
     } finally {
@@ -353,7 +414,7 @@ export default function ReportFlowPage() {
     }
   };
 
-  const openScene = (nextSceneId: string, userText: string) => {
+  const openScene = (nextSceneId: string, userText: string, from: Snapshot) => {
     setSceneId(nextSceneId);
     setPin(null);
     setLocationDetail("");
@@ -361,18 +422,19 @@ export default function ReportFlowPage() {
       { role: "user", text: userText },
       { role: "ai", text: "3D 평면에서 문제가 있는 위치를 눌러 핀을 꽂아 주세요.\n끌어서 돌리고, 두 손가락이나 휠로 확대할 수 있어요." },
     );
-    setStage("scene");
+    moveTo("scene", from);
   };
 
   const handleUnitSubmit = async () => {
     if (!selectedHousing || !hoInput.trim() || submitting) return;
+    const from = snapshot();
     setSubmitting(true);
     setApiError(null);
     try {
       const found = await buildingApi.lookupUnit(selectedHousing.id, hoInput.trim(), dongInput.trim() || undefined);
       setUnit(found);
       const dongText = found.dong ? `${found.dong}동 ` : "";
-      openScene(found.sceneId, `${dongText}${found.ho}호 (${found.unitType} TYPE)`);
+      openScene(found.sceneId, `${dongText}${found.ho}호 (${found.unitType} TYPE)`, from);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "세대를 찾지 못했습니다.");
     } finally {
@@ -384,7 +446,7 @@ export default function ReportFlowPage() {
     if (!selectedSpace) return;
     if (selectedSpace.requiresFloor && !floorInput.trim()) return;
     const floorText = selectedSpace.requiresFloor ? ` ${floorInput.trim()}층` : "";
-    openScene(selectedSpace.sceneId, `${selectedSpace.name}${floorText}`);
+    openScene(selectedSpace.sceneId, `${selectedSpace.name}${floorText}`, snapshot());
   };
 
   const startQuestions = (firstStep: ReportQuestionStep) => {
@@ -412,6 +474,7 @@ export default function ReportFlowPage() {
     if (!reportId || !selectedHousing || submitting) return;
     const detail = locationDetail.trim();
     if (spaceKind === "UNIT" ? !hoInput.trim() : !manualSpace.trim()) return;
+    const from = snapshot();
     setSubmitting(true);
     setApiError(null);
     const ho = hoInput.trim().replace(/호$/, "");
@@ -439,8 +502,11 @@ export default function ReportFlowPage() {
         { role: "user", text: `${where}${detail ? ` · ${detail}` : ""}` },
         { role: "ai", text: `위치를 저장했어요.\n${fullText}` },
       );
-      setStage("afterLocation");
-      setTimeout(() => startQuestions(firstStep), 900);
+      moveTo("afterLocation", from);
+      questionTimerRef.current = window.setTimeout(() => {
+        questionTimerRef.current = null;
+        startQuestions(firstStep);
+      }, 900);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "위치를 저장하지 못했습니다.");
     } finally {
@@ -450,10 +516,14 @@ export default function ReportFlowPage() {
 
   const handleSceneConfirm = async () => {
     if (!reportId || !selectedHousing || !sceneId || !pin || submitting) return;
+    const from = snapshot();
     setSubmitting(true);
     setApiError(null);
     // 공용공간 이름과 핀 근처 라벨이 같으면("피트니스 · 피트니스 부근") 라벨을 생략한다.
-    const sameAsSpace = spaceKind === "COMMON" && pin.label != null && selectedSpace?.name.startsWith(pin.label);
+    // 층 배치도에서는 핀 근처 라벨이 세대 타입("52 TYPE")이라 위치 문구에 이미 있는 내용이다.
+    const sameAsSpace = pin.label != null && (spaceKind === "COMMON"
+      ? Boolean(selectedSpace?.name.startsWith(pin.label))
+      : unit != null && pin.label === `${unit.unitType} TYPE`);
     const near = pin.label && !sameAsSpace ? `${pin.label} 부근` : "";
     const detail = locationDetail.trim();
     const where = [near, detail].filter(Boolean).join(" · ");
@@ -488,8 +558,11 @@ export default function ReportFlowPage() {
       setAiLocationText(aiText);
       const firstStep = await aiApi.getNextReportQuestion(reportId, memo.trim(), []);
       addMsgs({ role: "locationSaved", label: fullText, sceneId, pin });
-      setStage("afterLocation");
-      setTimeout(() => startQuestions(firstStep), 900);
+      moveTo("afterLocation", from);
+      questionTimerRef.current = window.setTimeout(() => {
+        questionTimerRef.current = null;
+        startQuestions(firstStep);
+      }, 900);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "위치를 저장하지 못했습니다.");
     } finally {
@@ -501,6 +574,7 @@ export default function ReportFlowPage() {
     const t = text.trim();
     const current = step;
     if (!t || !current || !reportId || submitting) return;
+    const from = snapshot();
     addMsgs({ role: "user", text: t });
     const nextAnswers = [
       ...answers,
@@ -528,6 +602,7 @@ export default function ReportFlowPage() {
         );
         addMsgs({ role: "ai", text: nextStep.question.text });
         setStep(nextStep);
+        setHistory((h) => [...h, from]);
         return;
       }
       const generated = await aiApi.createReportDraft(
@@ -543,8 +618,11 @@ export default function ReportFlowPage() {
       setDraftSummary(generated.summary);
       setHazardContent(generated.hazardContent);
       setImprovement(generated.improvementSuggestion);
-      setStage("proposal");
+      moveTo("proposal", from);
     } catch (error) {
+      // 다시 답할 수 있게 방금 보낸 답변을 되돌린다.
+      setMessages((m) => m.slice(0, from.msgCount));
+      setAnswers(from.answers);
       setApiError(error instanceof Error ? error.message : "신고서를 생성하지 못했습니다.");
     } finally {
       setSubmitting(false);
@@ -593,12 +671,7 @@ export default function ReportFlowPage() {
           <div style={{ height: "max(44px, env(safe-area-inset-top))" }} />
           <div className="px-4 pb-2">
             <div className="flex items-center justify-between">
-              <button
-                onClick={handleClose}
-                className="bg-white/30 backdrop-blur-[20px] rounded-full p-2.5 shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] transition active:bg-white/70 active:scale-95"
-              >
-                <X className="w-6 h-6 text-[#262626]" />
-              </button>
+              <HeaderButtons canGoBack={history.length > 0 && !submitting} onBack={goBack} onClose={handleClose} />
               <div className="bg-white/30 backdrop-blur-[20px] rounded-full h-[44px] px-4 flex items-center shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
                 <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] whitespace-nowrap">
                   신고서 전송
@@ -737,12 +810,7 @@ export default function ReportFlowPage() {
         <div style={{ height: "max(44px, env(safe-area-inset-top))" }} />
         <div className="px-4 pb-2">
           <div className="flex items-center justify-between">
-            <button
-              onClick={handleClose}
-              className="bg-white/30 backdrop-blur-[20px] rounded-full p-2.5 shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] transition active:bg-white/70 active:scale-95"
-            >
-              <X className="w-6 h-6 text-[#262626]" />
-            </button>
+            <HeaderButtons canGoBack={history.length > 0 && !submitting} onBack={goBack} onClose={handleClose} />
             <div className="bg-white/30 backdrop-blur-[20px] rounded-full h-[44px] px-4 flex items-center shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
               <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] whitespace-nowrap">
                 {progress}
@@ -1271,6 +1339,23 @@ export default function ReportFlowPage() {
         className="hidden"
         onChange={handleFile}
       />
+    </div>
+  );
+}
+
+// ─── 헤더 왼쪽: 뒤로가기 · 닫기 ───
+function HeaderButtons({ canGoBack, onBack, onClose }: { canGoBack: boolean; onBack: () => void; onClose: () => void }) {
+  const button = "bg-white/30 backdrop-blur-[20px] rounded-full p-2.5 shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] transition active:bg-white/70 active:scale-95";
+  return (
+    <div className="flex items-center gap-2">
+      {canGoBack && (
+        <button type="button" aria-label="이전 단계로" onClick={onBack} className={button}>
+          <ChevronLeft className="w-6 h-6 text-[#262626]" />
+        </button>
+      )}
+      <button type="button" aria-label="신고 그만두기" onClick={onClose} className={button}>
+        <X className="w-6 h-6 text-[#262626]" />
+      </button>
     </div>
   );
 }
