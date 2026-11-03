@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth";
-import logo from "@/assets/logo.png";
+import BrandMark from "@/components/common/BrandMark";
 import GuestLoginPanel from "@/components/login/GuestLoginPanel";
 import type { PrincipalType } from "@/api/http";
 import { GUEST_LOGIN_ENABLED } from "@/constants/login";
@@ -37,7 +37,7 @@ export default function LoginPage() {
     <div className="app-shell flex flex-col min-h-dvh px-page">
       {/* Logo Area */}
       <div className="flex-1 flex flex-col items-center justify-center">
-        <img src={logo} alt="다시고침" className="w-[160px] h-[160px] rounded-xl mb-4" />
+        <BrandMark size={80} className="mb-4" />
         <h1 className="text-2xl font-bold text-text-primary">다시고침</h1>
         <p className="mt-2 text-base text-text-secondary">
           로그인하고 우리 집·공용공간 민원을 신고하세요
