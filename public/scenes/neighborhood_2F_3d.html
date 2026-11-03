@@ -602,6 +602,57 @@ document.getElementById('save').onclick = () => {
       post({ type: 'pin', pin: { x: +p.x.toFixed(3), y: +p.y.toFixed(3), z: +p.z.toFixed(3), label: nearestLabel(p) } });
     });
   }
+  // ── 여러 핀 (관리자 3D 지도) ──
+  // 부모 → 장면: { type: 'setPins', pins: [{ id, x, y, z, color }], selectedId }
+  // 장면 → 부모: { type: 'pinClick', id }  (view 모드에서 핀을 누르면)
+  const many = new THREE.Group();
+  scene.add(many);
+  const pinScale = pin.scale.x;
+  const buildPin = (color) => {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.35 });
+    const h = new THREE.Mesh(new THREE.SphereGeometry(0.28, 18, 14), mat);
+    h.position.y = 1.1;
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 8), mat);
+    st.position.y = 0.5;
+    [h, st].forEach((m) => { m.castShadow = true; });
+    g.add(h, st);
+    return g;
+  };
+  const setPins = (list, selectedId) => {
+    while (many.children.length) many.remove(many.children[0]);
+    (list || []).forEach((p) => {
+      const g = buildPin(p.color || '#e5484d');
+      g.position.set(p.x, p.y, p.z);
+      g.userData.id = p.id;
+      g.scale.setScalar(pinScale * (p.id === selectedId ? 1.45 : 1));
+      many.add(g);
+    });
+  };
+  addEventListener('message', (e) => {
+    const d = e.data || {};
+    if (d.source !== 'dasigochim-app') return;
+    if (d.type === 'setPins') setPins(d.pins, d.selectedId);
+  });
+  if (params.get('mode') !== 'pick') {
+    const ray2 = new THREE.Raycaster();
+    const ndc2 = new THREE.Vector2();
+    let down2 = null;
+    renderer.domElement.addEventListener('pointerdown', (e) => { down2 = { x: e.clientX, y: e.clientY }; });
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      const moved = !down2 || Math.hypot(e.clientX - down2.x, e.clientY - down2.y) > 6;
+      down2 = null;
+      if (moved || !many.children.length) return;
+      const r = renderer.domElement.getBoundingClientRect();
+      ndc2.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray2.setFromCamera(ndc2, camera);
+      const hit = ray2.intersectObjects(many.children, true)[0];
+      if (!hit) return;
+      let o = hit.object;
+      while (o && o.parent !== many) o = o.parent;
+      if (o) post({ type: 'pinClick', id: o.userData.id });
+    });
+  }
   post({ type: 'ready' });
 })();
 </script>

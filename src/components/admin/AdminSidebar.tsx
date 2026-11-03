@@ -1,11 +1,14 @@
 import logo from "@/assets/logo.png";
 import type { DepartmentWithCount } from "@/api/admin";
+import { Box } from "lucide-react";
 
 interface AdminSidebarProps {
   departments: DepartmentWithCount[];
   selectedId: number | null;
+  activeView: "reports" | "map3d";
   adminName: string;
   onSelect: (departmentId: number | null) => void;
+  onMapSelect: () => void;
   onLogout: () => void;
 }
 
@@ -13,8 +16,10 @@ interface AdminSidebarProps {
 export default function AdminSidebar({
   departments,
   selectedId,
+  activeView,
   adminName,
   onSelect,
+  onMapSelect,
   onLogout,
 }: AdminSidebarProps) {
   return (
@@ -22,6 +27,21 @@ export default function AdminSidebar({
       <div className="flex items-center gap-2.5 px-6 pt-6">
         <img src={logo} alt="" className="size-8 shrink-0 rounded-[6px] object-cover" />
         <span className="text-base font-semibold tracking-[-0.4px] text-neutral-800">다시고침</span>
+      </div>
+
+      <div className="px-4 pt-6">
+        <button
+          type="button"
+          onClick={onMapSelect}
+          className={`flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2.5 transition ${
+            activeView === "map3d" ? "bg-sogang-50" : "hover:bg-neutral-50"
+          }`}
+        >
+          <Box className={`size-[18px] ${activeView === "map3d" ? "text-sogang-500" : "text-neutral-500"}`} />
+          <span className={`text-sm tracking-[-0.4px] ${activeView === "map3d" ? "font-semibold text-sogang-500" : "font-medium text-neutral-600"}`}>
+            3D 지도
+          </span>
+        </button>
       </div>
 
       <p className="px-6 pb-2 pt-5 text-[11px] font-medium tracking-[-0.4px] text-neutral-400">
@@ -33,12 +53,12 @@ export default function AdminSidebar({
           type="button"
           onClick={() => onSelect(null)}
           className={`flex h-10 w-full items-center justify-between rounded-[10px] px-2.5 transition ${
-            selectedId === null ? "bg-sogang-50" : "hover:bg-neutral-50"
+            activeView === "reports" && selectedId === null ? "bg-sogang-50" : "hover:bg-neutral-50"
           }`}
         >
           <span
             className={`text-sm tracking-[-0.4px] ${
-              selectedId === null ? "font-semibold text-sogang-500" : "font-medium text-neutral-600"
+              activeView === "reports" && selectedId === null ? "font-semibold text-sogang-500" : "font-medium text-neutral-600"
             }`}
           >
             전체
@@ -46,7 +66,7 @@ export default function AdminSidebar({
         </button>
 
         {departments.map((department) => {
-          const selected = selectedId === department.id;
+          const selected = activeView === "reports" && selectedId === department.id;
           return (
             <button
               key={department.id}

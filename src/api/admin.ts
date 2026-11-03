@@ -17,6 +17,13 @@ export interface AdminMe {
   name: string;
 }
 
+/** 관리자 3D 지도: 단지의 3D 장면 목록과 접수된 신고 전부 */
+export interface AdminSpaceMap {
+  building: { id: number; name: string; has3d: boolean };
+  scenes: { sceneId: string; name: string }[];
+  reports: Report[];
+}
+
 export interface AdminReportQuery {
   status?: ReportStatus;
   departmentId?: number;
@@ -49,6 +56,8 @@ export const adminApi = {
     http.get<Page<Report>>(`/admin/reports?${toQuery(query)}`),
 
   reportDetail: (id: number) => http.get<Report>(`/admin/reports/${id}`),
+
+  spaceMap: (buildingId: number) => http.get<AdminSpaceMap>(`/admin/buildings/${buildingId}/space-map`),
 
   reportFile: (id: number) =>
     http.get<{ url: string }>(`/admin/reports/${id}/report-file`),

@@ -8,6 +8,7 @@ import { FILTER_STATUSES, STATUS_LABEL } from "@/constants/adminStatus";
 import { useAuth } from "@/auth";
 import { useNotifications } from "@/hooks/useNotifications";
 import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminSpaceMapView from "@/components/admin/AdminSpaceMapView";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminRiskCell from "@/components/admin/AdminRiskCell";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
@@ -40,6 +41,7 @@ export default function AdminDashboardPage() {
   const [pageIndex, setPageIndex] = useState(0);
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [view, setView] = useState<"reports" | "map3d">("reports");
   const {
     notifications,
     loading: notificationsLoading,
@@ -89,6 +91,7 @@ export default function AdminDashboardPage() {
   }, [status, departmentId, query, pageIndex]);
 
   const changeFilter = useCallback((next: () => void) => {
+    setView("reports");
     setLoading(true);
     setPageIndex(0);
     next();
@@ -102,14 +105,16 @@ export default function AdminDashboardPage() {
       <AdminSidebar
         departments={departments}
         selectedId={departmentId}
+        activeView={view}
         adminName={adminName}
         onSelect={(id) => changeFilter(() => setDepartmentId(id))}
+        onMapSelect={() => setView("map3d")}
         onLogout={logout}
       />
 
       <main className="flex min-w-0 flex-1 flex-col px-9 py-8">
         <div className="relative flex items-center justify-between">
-          <h1 className="text-[17px] font-bold tracking-[-0.4px] text-neutral-800">신고 목록</h1>
+          <h1 className="text-[17px] font-bold tracking-[-0.4px] text-neutral-800">{view === "map3d" ? "3D 지도" : "신고 목록"}</h1>
           <button
             type="button"
             aria-label={notificationsOpen ? "알림 닫기" : "알림"}
@@ -153,6 +158,9 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
+        {view === "map3d" ? (
+          <AdminSpaceMapView onOpenReport={(reportId) => navigate(`/admin/reports/${reportId}`)} />
+        ) : (
         <>
             {/* 요약 */}
             <div className="mt-5 flex gap-5">
@@ -288,6 +296,7 @@ export default function AdminDashboardPage() {
           )}
             </div>
         </>
+        )}
       </main>
     </div>
   );
