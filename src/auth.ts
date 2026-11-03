@@ -7,7 +7,6 @@ export interface AuthContextType {
   isAuthLoading: boolean;
   user: User | null;
   principalType: PrincipalType | null;
-  login: (idToken: string) => Promise<PrincipalType>;
   guestLogin: (role: PrincipalType, code: string) => Promise<PrincipalType>;
   refreshProfile: () => Promise<User>;
   logout: () => void;
@@ -18,7 +17,6 @@ export const AuthContext = createContext<AuthContextType>({
   isAuthLoading: true,
   user: null,
   principalType: null,
-  login: async () => "USER",
   guestLogin: async () => "USER",
   refreshProfile: async () => { throw new Error("인증 컨텍스트가 초기화되지 않았습니다."); },
   logout: () => {},

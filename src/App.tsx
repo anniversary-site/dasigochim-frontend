@@ -41,11 +41,6 @@ export default function App() {
     return result.principalType
   }, [loadProfile])
 
-  const login = useCallback(
-    async (idToken: string) => completeLogin(await authApi.socialLogin(idToken)),
-    [completeLogin]
-  )
-
   const guestLogin = useCallback(
     async (role: PrincipalType, code: string) => completeLogin(await authApi.guestLogin(role, code)),
     [completeLogin]
@@ -78,7 +73,7 @@ export default function App() {
   }, [logout])
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isAuthLoading, user, principalType, login, guestLogin, refreshProfile: loadProfile, logout }}>
+    <AuthContext.Provider value={{ isLoggedIn, isAuthLoading, user, principalType, guestLogin, refreshProfile: loadProfile, logout }}>
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/login" element={<LoginPage />} />

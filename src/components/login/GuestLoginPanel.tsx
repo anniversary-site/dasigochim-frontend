@@ -6,7 +6,7 @@ interface GuestLoginPanelProps {
   disabled?: boolean;
 }
 
-/** 심사위원 전용 게스트 로그인 — 접근 코드를 입력하고 입주민/관리자 체험 중 하나를 고른다 */
+/** 테스트 로그인 — 접근 코드를 입력하고 입주민/관리자 체험 중 하나를 고른다 */
 export default function GuestLoginPanel({ onGuestLogin, disabled = false }: GuestLoginPanelProps) {
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
@@ -19,14 +19,14 @@ export default function GuestLoginPanel({ onGuestLogin, disabled = false }: Gues
         onClick={() => setOpen(true)}
         className="text-sm text-text-secondary underline underline-offset-2"
       >
-        심사위원 로그인
+        테스트 로그인
       </button>
     );
   }
 
   return (
     <div className="flex w-full flex-col gap-2 rounded-xl border border-neutral-200 p-4">
-      <p className="text-sm font-medium text-text-primary">심사위원 로그인</p>
+      <p className="text-sm font-medium text-text-primary">테스트 로그인</p>
       <input
         type="password"
         value={code}

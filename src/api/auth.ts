@@ -10,14 +10,7 @@ export interface AuthResult {
 export type AdminAuthResult = AuthResult;
 
 export const authApi = {
-  // 소셜 로그인 (Google) — 백엔드가 idToken 검증 후 JWT 발급
-  async socialLogin(idToken: string): Promise<AuthResult> {
-    const res = await http.post<AuthResult>("/auth/google", { idToken });
-    tokenStore.set(res.accessToken, res.refreshToken, res.principalType);
-    return res;
-  },
-
-  // 심사위원 게스트 로그인 — 백엔드 GUEST_LOGIN_ENABLED가 켜져 있고 접근 코드가 맞을 때만 발급
+  // 테스트 로그인 — 백엔드 GUEST_LOGIN_ENABLED가 켜져 있고 접근 코드가 맞을 때만 발급
   async guestLogin(role: PrincipalType, code: string): Promise<AuthResult> {
     const res = await http.post<AuthResult>("/auth/guest", { role, code });
     tokenStore.set(res.accessToken, res.refreshToken, res.principalType);

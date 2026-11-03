@@ -2,14 +2,13 @@ import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth";
 import logo from "@/assets/logo.png";
-import GoogleLoginButton from "@/components/login/GoogleLoginButton";
 import GuestLoginPanel from "@/components/login/GuestLoginPanel";
 import type { PrincipalType } from "@/api/http";
-import { GOOGLE_CLIENT_ID, GUEST_LOGIN_ENABLED } from "@/constants/google";
+import { GUEST_LOGIN_ENABLED } from "@/constants/login";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, guestLogin } = useAuth();
+  const { guestLogin } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,9 +28,6 @@ export default function LoginPage() {
     [navigate]
   );
 
-  // 구글 ID token으로 백엔드 로그인
-  const handleCredential = useCallback((idToken: string) => runLogin(() => login(idToken)), [login, runLogin]);
-
   const handleGuestLogin = useCallback(
     (role: PrincipalType, code: string) => runLogin(() => guestLogin(role, code)),
     [guestLogin, runLogin]
@@ -50,14 +46,13 @@ export default function LoginPage() {
 
       {/* Login Buttons */}
       <div className="flex flex-col items-center gap-3 pb-12">
-        {GOOGLE_CLIENT_ID ? (
-          <GoogleLoginButton onCredential={handleCredential} disabled={submitting} />
+        {GUEST_LOGIN_ENABLED ? (
+          <GuestLoginPanel onGuestLogin={handleGuestLogin} disabled={submitting} />
         ) : (
           <p className="text-sm text-sogang-500 text-center">
-            VITE_GOOGLE_CLIENT_ID가 설정되지 않았습니다.
+            테스트 로그인이 꺼져 있습니다. (VITE_GUEST_LOGIN_ENABLED)
           </p>
         )}
-        {GUEST_LOGIN_ENABLED && <GuestLoginPanel onGuestLogin={handleGuestLogin} disabled={submitting} />}
         {submitting && <p className="text-sm text-text-secondary text-center">로그인 확인 중...</p>}
         {error && <p className="text-sm text-sogang-500 text-center">{error}</p>}
       </div>
