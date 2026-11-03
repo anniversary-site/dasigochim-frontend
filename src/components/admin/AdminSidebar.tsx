@@ -1,6 +1,7 @@
-import logo from "@/assets/logo.png";
+import BrandMark from "@/components/common/BrandMark";
 import type { DepartmentWithCount } from "@/api/admin";
 import { Box } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface AdminSidebarProps {
   departments: DepartmentWithCount[];
@@ -25,11 +26,12 @@ export default function AdminSidebar({
   return (
     <aside className="flex w-[273px] shrink-0 flex-col border-r border-gray-200 bg-gray-10">
       <div className="flex items-center gap-2.5 px-6 pt-6">
-        <img src={logo} alt="" className="size-8 shrink-0 rounded-[6px] object-cover" />
+        <BrandMark size={32} />
         <span className="text-base font-semibold tracking-[-0.4px] text-neutral-800">다시고침</span>
       </div>
 
       <div className="px-4 pt-6">
+        <Link to="/admin" className="mb-2 flex h-10 items-center rounded-[10px] px-2.5 text-sm font-semibold text-sogang-500 hover:bg-sogang-50">← 주택별 민원분석</Link>
         <button
           type="button"
           onClick={onMapSelect}

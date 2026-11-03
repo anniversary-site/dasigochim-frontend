@@ -1,4 +1,4 @@
-import alos from "@/assets/alos-default.png";
+import BrandMark from "./BrandMark";
 
 interface ProfileAvatarProps {
   /** 정사각형 한 변 길이(px) */
@@ -6,20 +6,14 @@ interface ProfileAvatarProps {
   className?: string;
 }
 
-/** 프로필 이미지 — sogang/50 배경 위에 알로스 캐릭터 */
+/** 프로필 이미지 — 공통 브랜드 아이콘 */
 export default function ProfileAvatar({ size = 60, className = "" }: ProfileAvatarProps) {
   return (
     <div
-      className={`flex shrink-0 items-end justify-center overflow-hidden rounded-[6px] bg-sogang-50 ${className}`}
+      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-sogang-50 ${className}`}
       style={{ width: size, height: size }}
     >
-      <img
-        src={alos}
-        alt=""
-        aria-hidden="true"
-        className="w-auto max-w-none select-none object-contain"
-        style={{ height: size * 1.125, transform: `translateY(${size * 0.1875}px)` }}
-      />
+      <BrandMark size={size * 0.65} />
     </div>
   );
 }

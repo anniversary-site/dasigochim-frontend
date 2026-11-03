@@ -13,6 +13,7 @@ import UserPageGuard from './pages/UserPageGuard'
 import AdminGuard from './pages/Admin/AdminGuard'
 import AdminDashboardPage from './pages/Admin/AdminDashboardPage'
 import AdminReportDetailPage from './pages/Admin/AdminReportDetailPage'
+import HousingAnalysisPage from './pages/Admin/HousingAnalysisPage'
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(tokenStore.getAccess()))
@@ -83,7 +84,8 @@ export default function App() {
         <Route path="/report" element={<UserPageGuard><ReportFlowPage /></UserPageGuard>} />
         <Route path="/my-reports" element={<Navigate to="/home" replace />} />
         <Route path="/profile" element={<UserPageGuard><ProfileSetupPage /></UserPageGuard>} />
-        <Route path="/admin" element={<AdminGuard><AdminDashboardPage /></AdminGuard>} />
+        <Route path="/admin" element={<AdminGuard><HousingAnalysisPage /></AdminGuard>} />
+        <Route path="/admin/reports" element={<AdminGuard><AdminDashboardPage /></AdminGuard>} />
         <Route path="/admin/reports/:id" element={<AdminGuard><AdminReportDetailPage /></AdminGuard>} />
       </Routes>
     </AuthContext.Provider>
