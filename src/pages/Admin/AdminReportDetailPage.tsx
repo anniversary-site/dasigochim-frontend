@@ -1,3 +1,4 @@
+import AdminTopNav from "@/components/admin/AdminTopNav";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Download } from "lucide-react";
@@ -104,18 +105,22 @@ export default function AdminReportDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-sogang-10 text-sm text-neutral-500">
-        불러오는 중...
+      <div className="flex min-h-dvh flex-col bg-sogang-10">
+        <AdminTopNav active="reports" />
+        <div className="flex flex-1 items-center justify-center text-sm text-neutral-500">불러오는 중...</div>
       </div>
     );
   }
   if (!report) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-sogang-10">
-        <p className="text-sm text-sogang-500">{error ?? "신고를 찾을 수 없습니다."}</p>
-        <Link to="/admin" className="text-sm text-neutral-500 underline underline-offset-4">
-          신고 목록으로
-        </Link>
+      <div className="flex min-h-dvh flex-col bg-sogang-10">
+        <AdminTopNav active="reports" />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3">
+          <p className="text-sm text-sogang-500">{error ?? "신고를 찾을 수 없습니다."}</p>
+          <Link to="/admin/reports" className="text-sm text-neutral-500 underline underline-offset-4">
+            신고 목록으로
+          </Link>
+        </div>
       </div>
     );
   }
@@ -127,8 +132,10 @@ export default function AdminReportDetailPage() {
   const space = report.space;
 
   return (
-    <div className="min-h-dvh bg-sogang-10 px-9 py-8">
-      <Link to="/admin" className="inline-flex items-center gap-2.5">
+    <div className="min-h-dvh bg-sogang-10">
+    <AdminTopNav active="reports" />
+    <div className="px-9 py-8">
+      <Link to="/admin/reports" className="inline-flex items-center gap-2.5">
         <span className="flex size-8 items-center justify-center rounded-[6px] bg-sogang-50">
           <ArrowLeft className="size-4 text-sogang-500" />
         </span>
@@ -343,6 +350,7 @@ export default function AdminReportDetailPage() {
           </div>
         </aside>
       </div>
+    </div>
     </div>
   );
 }

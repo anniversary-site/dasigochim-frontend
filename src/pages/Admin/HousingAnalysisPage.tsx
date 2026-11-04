@@ -3,12 +3,11 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { adminApi, type AdminMe } from "@/api/admin";
 import { buildingApi } from "@/api/buildings";
-import { useAuth } from "@/auth";
 import type { Building, BuildingSpace, Region, Report } from "@/types";
 import { REPORT_STATUS_LABEL } from "@/types";
-import BrandMark from "@/components/common/BrandMark";
 import AdminChatWidget, { type ChatCategory } from "@/components/admin/AdminChatWidget";
 import AreaDashboard from "@/components/admin/AreaDashboard";
+import AdminTopNav from "@/components/admin/AdminTopNav";
 import AdminBuildingScene3D from "@/components/admin/AdminBuildingScene3D";
 import RegionKakaoMap from "@/components/admin/RegionKakaoMap";
 import SceneViewer from "@/components/scene/SceneViewer";
@@ -45,7 +44,6 @@ function groupProblems(reports: Report[]) {
 }
 
 export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnalyses?: Readonly<Record<string, SpaceAnalysisData>> }) {
-  const { logout } = useAuth();
   const navigate = useNavigate();
   // 상단 탭: 대시보드(기본) / 민원 지도(지도 · 3D · 신고). 주소에 남겨 새로고침·뒤로가기에도 유지한다.
   const [params, setParams] = useSearchParams();
@@ -67,7 +65,6 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
-  const [account, setAccount] = useState(false);
   const [reviewIds, setReviewIds] = useState<number[]>([]);
   const [me, setMe] = useState<AdminMe | null>(null);
   const [root, setRoot] = useState<Selection>(initial);
@@ -164,17 +161,7 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   const selectionReports = reports.filter(r => r.building?.id !== undefined && selectionIds.has(r.building.id));
   const total = scopedBuildings.reduce((n, b) => n + countBuilding(b.id), 0);
   return <div className="housing-app">
-    <header className="housing-header">
-      <button className="housing-brand" onClick={() => apply(root)}><BrandMark /><span>청년안심주택 민원분석</span></button>
-      <nav aria-label="사용자 메뉴">
-        {me && <span className="housing-role" title={`${me.name} · ${me.departmentName}`}>{me.roleLabel} · {me.scopeLabel}</span>}
-        {([["dashboard", "대시보드"], ["map", "민원 지도"]] as const).map(([id, label]) =>
-          <button key={id} type="button" className={`housing-nav-tab ${view === id ? "active" : ""}`} aria-current={view === id ? "page" : undefined} onClick={() => setView(id)}>{label}</button>)}
-        <Link to="/admin/reports">신고 관리</Link><i />
-        <button onClick={() => setAccount(true)}>마이페이지</button><i />
-        <button onClick={() => { logout(); navigate("/login"); }}>로그아웃</button>
-      </nav>
-    </header>
+    <AdminTopNav active={view} me={me} onTab={setView} onBrand={() => apply(root)} />
     <form className="housing-filters" onSubmit={e => { e.preventDefault(); apply(selection); }}>
       <div className="housing-filter-row">
         {([
@@ -270,6 +257,5 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
     </div>}
     {!loading && <AdminChatWidget regions={regions} buildings={buildings} reports={reports} pageScope={pageScope} />}
     {reviewIds.length > 0 && <div className="housing-modal-backdrop" onClick={() => setReviewIds([])}><section className="housing-modal analysis-review-modal" role="dialog" aria-modal="true" aria-label="코드북 미분류 민원 검토" onClick={e => e.stopPropagation()}><div><h2>코드북 미분류 민원 검토</h2><button autoFocus aria-label="검토 닫기" onClick={() => setReviewIds([])}><X size={20} /></button></div><p>선택한 공간에서 미분류된 민원의 원문을 확인하세요.</p>{reviewReports.map(r => <Link key={r.id} className="analysis-report" to={`/admin/reports/${r.id}`}><span>{r.summary ?? "공간 민원"}</span><small>원문 확인 →</small></Link>)}{!reviewReports.length && <p>현재 목록에서 해당 민원을 찾을 수 없어요.</p>}</section></div>}
-    {account && <div className="housing-modal-backdrop" onClick={() => setAccount(false)}><section className="housing-modal" role="dialog" aria-modal="true" aria-label="마이페이지" onClick={e => e.stopPropagation()}><div><h2>마이페이지</h2><button autoFocus aria-label="닫기" onClick={() => setAccount(false)}><X size={20} /></button></div><p>{me ? <>{me.name} · {me.roleLabel}<br />담당 구역: {me.scopeLabel}<br />부서: {me.departmentName}</> : "관리자 계정으로 접속 중입니다."}</p><button className="housing-primary" onClick={() => setAccount(false)}>확인</button></section></div>}
   </div>;
 }

@@ -8,6 +8,7 @@ import { FILTER_STATUSES, STATUS_LABEL } from "@/constants/adminStatus";
 import { useAuth } from "@/auth";
 import { useNotifications } from "@/hooks/useNotifications";
 import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminTopNav from "@/components/admin/AdminTopNav";
 import AdminSpaceMapView from "@/components/admin/AdminSpaceMapView";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminRiskCell from "@/components/admin/AdminRiskCell";
@@ -101,7 +102,9 @@ export default function AdminDashboardPage() {
   const totalPages = page?.totalPages ?? 0;
 
   return (
-    <div className="flex min-h-dvh bg-sogang-10">
+    <div className="flex min-h-dvh flex-col bg-sogang-10">
+    <AdminTopNav active="reports" />
+    <div className="flex min-h-0 flex-1">
       <AdminSidebar
         departments={departments}
         selectedId={departmentId}
@@ -298,6 +301,7 @@ export default function AdminDashboardPage() {
         </>
         )}
       </main>
+    </div>
     </div>
   );
 }
