@@ -15,3 +15,6 @@
 .housing-marker.on-map{position:relative;white-space:nowrap;box-shadow:0 4px 14px #191f281f;height:auto;min-width:0;padding:5px 10px;gap:6px;border-radius:10px;max-width:none}.housing-marker.on-map b{font-size:15px}.housing-marker.on-map span{font-size:11px;white-space:nowrap}.housing-marker.on-map:after{width:10px;height:10px;bottom:-5px;left:calc(50% - 5px)}.map-empty.on-map{z-index:2;pointer-events:none}
 .housing-space-pins{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.housing-floor-3d{height:570px;width:100%;border:1px solid #d1d6db;border-radius:16px;overflow:hidden}.housing-floor-3d.expanded{height:740px}
 @media(max-width:760px){.housing-floor-3d,.housing-floor-3d.expanded{height:460px}}
+.housing-chat-open{display:inline-flex;align-items:center;gap:6px;color:var(--blue);border-color:#aec9ff;white-space:nowrap}.housing-heading-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.chat-heading>div{display:flex;flex-direction:column;min-width:0}.chat-scope{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.housing-chat-backdrop{place-items:stretch end;padding:0}.housing-chat-drawer{width:min(480px,100vw);height:100dvh;box-shadow:-12px 0 40px #191f2822}
