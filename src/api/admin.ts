@@ -61,7 +61,18 @@ function toQuery(q: AdminReportQuery): string {
 
 // 관리자 대시보드 (ROLE_ADMIN)
 export const adminApi = {
-  me: () => http.get<AdminMe>("/admin/me"),
+  // 예전 백엔드는 name 만 준다 — 역할·구역이 없으면 전체 관리자로 본다.
+  me: async (): Promise<AdminMe> => {
+    const raw = await http.get<Partial<AdminMe>>("/admin/me");
+    return {
+      name: raw.name ?? "관리자",
+      role: raw.role ?? "SUPER",
+      roleLabel: raw.roleLabel ?? "전체 관리자",
+      scopeLabel: raw.scopeLabel ?? "전국",
+      departmentName: raw.departmentName ?? "",
+      scopes: raw.scopes ?? [],
+    };
+  },
 
   statsSummary: () => http.get<AdminStatsSummary>("/admin/stats/summary"),
 
