@@ -243,7 +243,7 @@ export default function AdminReportDetailPage() {
               type="button"
               onClick={downloadReportFile}
               disabled={downloading}
-              className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[10px] bg-sogang-500 text-base font-semibold tracking-[-0.4px] text-white shadow-[0px_4px_10px_0px_rgba(169,38,20,0.25)] transition active:brightness-95 disabled:opacity-70"
+              className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[10px] bg-sogang-500 text-base font-semibold tracking-[-0.4px] text-white shadow-[0px_4px_10px_0px_rgba(37,110,244,0.25)] transition active:brightness-95 disabled:opacity-70"
             >
               {downloading ? (
                 <>

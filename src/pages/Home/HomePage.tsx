@@ -225,7 +225,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={handleReportStart}
-              className="pointer-events-auto flex items-center gap-2 rounded-full bg-sogang-500 px-6 py-3.5 text-base font-semibold text-white shadow-[0px_4px_20px_0px_rgba(169,38,20,0.35)] transition active:scale-95"
+              className="pointer-events-auto flex items-center gap-2 rounded-full bg-sogang-500 px-6 py-3.5 text-base font-semibold text-white shadow-[0px_4px_20px_0px_rgba(37,110,244,0.35)] transition active:scale-95"
             >
               <Plus className="size-5" />
               신고하기

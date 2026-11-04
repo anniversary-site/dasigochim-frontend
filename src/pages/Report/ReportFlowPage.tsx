@@ -8,10 +8,10 @@ import type { Building, BuildingSpace, BuildingUnit, Region, ScenePin, SpaceType
 import SceneViewer from "@/components/scene/SceneViewer";
 import { IMPROVEMENT_MARKER } from "@/utils/reportDescription";
 
-// 페이지 배경 (gray/10)
-const BG = "#fcfcfc";
-// 강조 (sogang/500)
-const SOGANG_RED = "#a92614";
+// 페이지 배경
+const BG = "#f9fafb";
+// 강조 (관리자 화면과 같은 파란색)
+const BRAND_BLUE = "#256ef4";
 
 type Stage =
   | "photo"
@@ -758,7 +758,7 @@ export default function ReportFlowPage() {
                 <button
                   onClick={commitEdit}
                   className="rounded-full p-2 flex items-center justify-center transition active:scale-95 active:brightness-90"
-                  style={{ backgroundColor: SOGANG_RED }}
+                  style={{ backgroundColor: BRAND_BLUE }}
                 >
                   <ArrowUp className="w-6 h-6 text-white" />
                 </button>
@@ -772,7 +772,7 @@ export default function ReportFlowPage() {
                 onClick={handleSubmitProposal}
                 disabled={submitting}
                 className="w-full h-11 rounded-[10px] text-base font-semibold text-white tracking-[-0.4px] transition active:brightness-90"
-                style={{ backgroundColor: SOGANG_RED }}
+                style={{ backgroundColor: BRAND_BLUE }}
               >
                 {submitting ? "전송 중..." : "신고서 전송하기"}
               </button>
@@ -856,7 +856,7 @@ export default function ReportFlowPage() {
               <div key={m.id} data-msg-id={m.id} className="flex justify-end">
                 <div
                   className="max-w-[300px] rounded-[20px] px-4 py-3"
-                  style={{ backgroundColor: SOGANG_RED }}
+                  style={{ backgroundColor: BRAND_BLUE }}
                 >
                   <p className="text-sm text-[#fcfcfc] tracking-[-0.28px] leading-[1.4]">
                     {m.text}
@@ -914,7 +914,7 @@ export default function ReportFlowPage() {
             <div className="flex items-center gap-2.5 px-5">
               <button
                 onClick={() => cameraRef.current?.click()}
-                className="flex-1 flex items-center justify-center gap-2.5 border border-[#d9d9d9] rounded-[10px] px-5 py-4 transition active:bg-[#F5F5F5] active:border-[#262626] active:scale-[0.98]"
+                className="flex-1 flex items-center justify-center gap-2.5 border border-[#d9d9d9] rounded-[10px] px-5 py-4 transition active:bg-[#ecf2fe] active:border-[#256ef4] active:scale-[0.98]"
               >
                 <Camera className="w-6 h-6 text-[#262626]" />
                 <span className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
@@ -923,7 +923,7 @@ export default function ReportFlowPage() {
               </button>
               <button
                 onClick={() => albumRef.current?.click()}
-                className="flex-1 flex items-center justify-center gap-2.5 border border-[#d9d9d9] rounded-[10px] px-5 py-4 transition active:bg-[#F5F5F5] active:border-[#262626] active:scale-[0.98]"
+                className="flex-1 flex items-center justify-center gap-2.5 border border-[#d9d9d9] rounded-[10px] px-5 py-4 transition active:bg-[#ecf2fe] active:border-[#256ef4] active:scale-[0.98]"
               >
                 <ImageIcon className="w-6 h-6 text-[#262626]" />
                 <span className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
@@ -963,7 +963,7 @@ export default function ReportFlowPage() {
                   onClick={handleComposeSend}
                   disabled={submitting}
                   className="rounded-full p-2 flex items-center justify-center transition active:scale-95 active:brightness-90"
-                  style={{ backgroundColor: SOGANG_RED }}
+                  style={{ backgroundColor: BRAND_BLUE }}
                 >
                   <ArrowUp className="w-6 h-6 text-white" />
                 </button>
@@ -980,7 +980,7 @@ export default function ReportFlowPage() {
             <div className="flex gap-2">
               <select
                 aria-label="시·도"
-                className="select-chevron w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none"
+                className="select-chevron w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4]"
                 value={sido}
                 disabled={listLoading}
                 onChange={(e) => {
@@ -998,7 +998,7 @@ export default function ReportFlowPage() {
               </select>
               <select
                 aria-label="시·군·구"
-                className="select-chevron w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none"
+                className="select-chevron w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4]"
                 value={sigungu}
                 disabled={!sido}
                 onChange={(e) => setSigungu(e.target.value)}
@@ -1015,7 +1015,7 @@ export default function ReportFlowPage() {
               onClick={() => void handleRegionSelect()}
               disabled={!sido || !sigungu || submitting}
               className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
-              style={{ backgroundColor: SOGANG_RED }}
+              style={{ backgroundColor: BRAND_BLUE }}
             >
               다음
             </button>
@@ -1033,13 +1033,13 @@ export default function ReportFlowPage() {
                   key={housing.id}
                   onClick={() => setSelectedHousing(housing)}
                   className={`w-full rounded-[10px] border bg-white px-4 py-3 text-left transition active:scale-[0.99] ${
-                    selectedHousing?.id === housing.id ? "border-[#a92614]" : "border-[#E3E3E3]"
+                    selectedHousing?.id === housing.id ? "border-[#256ef4]" : "border-[#E3E3E3]"
                   }`}
                 >
                   <span className="flex items-center gap-1.5">
                     <span className="text-sm font-semibold text-[#262626] tracking-[-0.28px]">{housing.name}</span>
                     {housing.has3d && (
-                      <span className="shrink-0 rounded-full bg-[#fbf4f3] px-1.5 py-0.5 text-[10px] font-semibold text-[#a92614]">3D</span>
+                      <span className="shrink-0 rounded-full bg-[#ecf2fe] px-1.5 py-0.5 text-[10px] font-semibold text-[#256ef4]">3D</span>
                     )}
                     {housing.supplyStatus && housing.supplyStatus !== "입주" && (
                       <span className="shrink-0 rounded-full bg-[#f2f2f2] px-1.5 py-0.5 text-[10px] font-medium text-[#7b7b7b]">{housing.supplyStatus}</span>
@@ -1055,7 +1055,7 @@ export default function ReportFlowPage() {
               onClick={handleHousingSelect}
               disabled={!selectedHousing}
               className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
-              style={{ backgroundColor: SOGANG_RED }}
+              style={{ backgroundColor: BRAND_BLUE }}
             >
               다음
             </button>
@@ -1076,7 +1076,7 @@ export default function ReportFlowPage() {
                   key={kind}
                   onClick={() => void handleSpaceKindSelect(kind)}
                   disabled={submitting}
-                  className="flex-1 rounded-[10px] border border-[#d9d9d9] bg-white px-4 py-4 text-left transition active:bg-[#F5F5F5] active:border-[#262626] active:scale-[0.98]"
+                  className="flex-1 rounded-[10px] border border-[#d9d9d9] bg-white px-4 py-4 text-left transition active:bg-[#ecf2fe] active:border-[#256ef4] active:scale-[0.98]"
                 >
                   <span className="block text-sm font-semibold text-[#262626] tracking-[-0.28px]">{label}</span>
                   <span className="mt-1 block text-xs text-[#7b7b7b] tracking-[-0.24px] leading-[1.4]">{hint}</span>
@@ -1094,7 +1094,7 @@ export default function ReportFlowPage() {
             <div className="flex gap-2">
               <div className="w-[38%]">
                 <input
-                  className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]"
+                  className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]"
                   inputMode="numeric"
                   placeholder="동 (없으면 비움)"
                   value={dongInput}
@@ -1104,7 +1104,7 @@ export default function ReportFlowPage() {
               <div className="flex-1">
                 <input
                   autoFocus
-                  className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]"
+                  className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]"
                   inputMode="numeric"
                   placeholder="호수 (예: 1203)"
                   value={hoInput}
@@ -1119,7 +1119,7 @@ export default function ReportFlowPage() {
               onClick={() => void handleUnitSubmit()}
               disabled={!hoInput.trim() || submitting}
               className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
-              style={{ backgroundColor: SOGANG_RED }}
+              style={{ backgroundColor: BRAND_BLUE }}
             >
               {submitting ? "세대를 찾는 중..." : "3D 평면 보기"}
             </button>
@@ -1138,7 +1138,7 @@ export default function ReportFlowPage() {
                   onClick={() => setSelectedSpace(space)}
                   className={`rounded-full border bg-white px-3.5 py-2 text-sm tracking-[-0.28px] transition active:scale-95 ${
                     selectedSpace?.code === space.code
-                      ? "border-[#a92614] font-semibold text-[#a92614]"
+                      ? "border-[#256ef4] font-semibold text-[#256ef4]"
                       : "border-[#E3E3E3] text-[#262626]"
                   }`}
                 >
@@ -1148,7 +1148,7 @@ export default function ReportFlowPage() {
             </div>
             {selectedSpace?.requiresFloor && (
               <input
-                className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]"
+                className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]"
                 inputMode="numeric"
                 placeholder="몇 층인가요? (예: 12)"
                 value={floorInput}
@@ -1159,7 +1159,7 @@ export default function ReportFlowPage() {
               onClick={handleSpaceSubmit}
               disabled={!selectedSpace || (selectedSpace.requiresFloor && !floorInput.trim())}
               className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
-              style={{ backgroundColor: SOGANG_RED }}
+              style={{ backgroundColor: BRAND_BLUE }}
             >
               3D 평면 보기
             </button>
@@ -1176,17 +1176,17 @@ export default function ReportFlowPage() {
             {spaceKind === "UNIT" ? (
               <div className="flex gap-2">
                 <div className="w-[38%]">
-                  <input className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]" inputMode="numeric" placeholder="동 (없으면 비움)" value={dongInput} onChange={(e) => setDongInput(e.target.value)} />
+                  <input className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]" inputMode="numeric" placeholder="동 (없으면 비움)" value={dongInput} onChange={(e) => setDongInput(e.target.value)} />
                 </div>
                 <div className="flex-1">
-                  <input autoFocus className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]" inputMode="numeric" placeholder="호수 (예: 1203)" value={hoInput} onChange={(e) => setHoInput(e.target.value)} />
+                  <input autoFocus className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]" inputMode="numeric" placeholder="호수 (예: 1203)" value={hoInput} onChange={(e) => setHoInput(e.target.value)} />
                 </div>
               </div>
             ) : (
-              <input autoFocus className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]" placeholder="공용공간 (예: 지하 주차장, 3층 복도)" value={manualSpace} onChange={(e) => setManualSpace(e.target.value)} />
+              <input autoFocus className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]" placeholder="공용공간 (예: 지하 주차장, 3층 복도)" value={manualSpace} onChange={(e) => setManualSpace(e.target.value)} />
             )}
             <input
-              className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]"
+              className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]"
               placeholder={spaceKind === "UNIT" ? "집 안 어디인가요? (예: 욕실 천장)" : "어디쯤인가요? (예: 엘리베이터 앞)"}
               value={locationDetail}
               onChange={(e) => setLocationDetail(e.target.value)}
@@ -1195,7 +1195,7 @@ export default function ReportFlowPage() {
               onClick={() => void handleManualConfirm()}
               disabled={submitting || (spaceKind === "UNIT" ? !hoInput.trim() : !manualSpace.trim())}
               className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
-              style={{ backgroundColor: SOGANG_RED }}
+              style={{ backgroundColor: BRAND_BLUE }}
             >
               {submitting ? "저장 중..." : "이 위치로 저장"}
             </button>
@@ -1208,13 +1208,13 @@ export default function ReportFlowPage() {
           <div className="w-full bg-white/80 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-3 flex flex-col gap-2.5">
             <SceneViewer sceneId={sceneId} mode="pick" pin={pin} onPin={setPin} className="h-[46svh] w-full border border-[#e9e9e9]" />
             <div className="flex items-center gap-2 px-1">
-              <MapPin className="size-4 shrink-0 text-[#a92614]" />
+              <MapPin className="size-4 shrink-0 text-[#256ef4]" />
               <span className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
                 {pin ? `${pin.label ?? "선택한 위치"} 부근에 핀을 꽂았어요` : "문제가 있는 위치를 눌러 주세요"}
               </span>
             </div>
             <input
-              className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none placeholder:text-[#C4C4C4]"
+              className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]"
               placeholder="위치를 더 설명해 주세요 (선택, 예: 세면대 아래)"
               value={locationDetail}
               onChange={(e) => setLocationDetail(e.target.value)}
@@ -1223,7 +1223,7 @@ export default function ReportFlowPage() {
               onClick={() => void handleSceneConfirm()}
               disabled={!pin || submitting}
               className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
-              style={{ backgroundColor: SOGANG_RED }}
+              style={{ backgroundColor: BRAND_BLUE }}
             >
               {submitting ? "저장 중..." : "이 위치로 저장"}
             </button>
@@ -1244,7 +1244,7 @@ export default function ReportFlowPage() {
             <div className="p-2.5 shrink-0">
               <button
                 onClick={handleInputSend}
-                className="bg-[#262626] rounded-full p-2 flex items-center justify-center transition active:scale-95 active:brightness-90"
+                className="bg-[#256ef4] rounded-full p-2 flex items-center justify-center transition active:scale-95 active:brightness-90"
               >
                 <ArrowUp className="w-6 h-6 text-white" />
               </button>
@@ -1300,7 +1300,7 @@ export default function ReportFlowPage() {
                     onClick={() => void handleAnswer(directInput)}
                     disabled={submitting}
                     className="rounded-full p-2 shrink-0 flex items-center justify-center transition active:scale-95 active:brightness-90"
-                    style={{ backgroundColor: SOGANG_RED }}
+                    style={{ backgroundColor: BRAND_BLUE }}
                   >
                     <ArrowUp className="w-6 h-6 text-white" />
                   </button>
@@ -1425,7 +1425,7 @@ function ProposalEditableField({
         {editing ? (
           <span
             className="text-sm font-medium tracking-[-0.28px]"
-            style={{ color: SOGANG_RED }}
+            style={{ color: BRAND_BLUE }}
           >
             수정중
           </span>
@@ -1441,7 +1441,7 @@ function ProposalEditableField({
       {editing ? (
         <div
           className="rounded-[10px] border p-2"
-          style={{ borderColor: SOGANG_RED }}
+          style={{ borderColor: BRAND_BLUE }}
         >
           <p className="text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] whitespace-pre-wrap">
             {draft}

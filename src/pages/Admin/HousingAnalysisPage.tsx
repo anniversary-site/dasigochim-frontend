@@ -7,13 +7,16 @@ import { useAuth } from "@/auth";
 import type { Building, BuildingSpace, Region, Report } from "@/types";
 import { REPORT_STATUS_LABEL } from "@/types";
 import BrandMark from "@/components/common/BrandMark";
+import AdminBuildingScene3D from "@/components/admin/AdminBuildingScene3D";
+import RegionKakaoMap from "@/components/admin/RegionKakaoMap";
+import SceneViewer from "@/components/scene/SceneViewer";
+import { markerColor } from "@/utils/reportMarker";
 import SpaceAnalysisSections, { type SpaceAnalysisData } from "@/components/admin/SpaceAnalysisSections";
 import { reportCategory, spaceCategorySummary, type SpaceCategory } from "@/utils/spaceCategorySummary";
 
-type Selection = { sido: string; district: string; dong: string; building: string };
-const initial: Selection = { sido: "서울특별시", district: "", dong: "", building: "" };
+type Selection = { sido: string; district: string; building: string };
+const initial: Selection = { sido: "서울특별시", district: "", building: "" };
 const positions = [[44, 39], [25, 22], [18, 54], [59, 61]];
-const dongOf = (b: Building) => b.address?.match(/\S+(?:동|읍|면)(?:\s|$)/)?.[0].trim() ?? "미등록";
 const spaceLabel = (s: BuildingSpace) => `${s.floorLabel ?? ""} ${s.name}`.trim();
 const belongsTo = (r: Report, s: BuildingSpace) => r.space?.code === s.code || (!r.space?.code && r.space?.name === s.name);
 function groupProblems(reports: Report[]) {
@@ -77,8 +80,7 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   const currentSpaces = spaces;
   const building = buildings.find(b => String(b.id) === applied.building);
   const availableBuildings = buildings.filter(b => (!selection.sido || b.sido === selection.sido) && (!selection.district || b.sigungu === selection.district));
-  const dongs = [...new Set(availableBuildings.map(dongOf))];
-  const housingOptions = availableBuildings.filter(b => !selection.dong || dongOf(b) === selection.dong);
+  const housingOptions = availableBuildings;
   const buildingReports = reports.filter(r => r.building?.id === building?.id);
   const categoryReports = buildingReports.filter(r => reportCategory(r, currentSpaces) === category);
   const selectedSpace = currentSpaces.find(s => s.code === selectedCode);
@@ -89,9 +91,13 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   const categorySpaces = category === "공용공간" ? currentSpaces : [];
   const floorSpaces = categorySpaces.filter(s => (s.floorLabel ?? "기타") === floor);
   const problems = groupProblems(scopedReports);
+  // 층 화면의 3D 장면: 고른 공간(없으면 그 층 첫 공간)의 장면에 그 공간 신고 핀을 띄운다.
+  const sceneSpace = selectedSpace ?? floorSpaces[0];
+  const spaceMarkers = sceneSpace ? buildingReports.filter(r => belongsTo(r, sceneSpace) && r.space?.sceneId === sceneSpace.sceneId && r.space.pin)
+    .map(r => ({ id: r.id, x: r.space!.pin!.x, y: r.space!.pin!.y, z: r.space!.pin!.z, color: markerColor(r) })) : [];
   const countBuilding = (id: number) => reports.filter(r => r.building?.id === id).length;
   const countDistrict = (district: string) => reports.filter(r => buildings.some(b => b.id === r.building?.id && b.sido === applied.sido && b.sigungu === district)).length;
-  const scopedBuildings = buildings.filter(b => b.sido === applied.sido && (!applied.district || b.sigungu === applied.district) && (!applied.dong || dongOf(b) === applied.dong));
+  const scopedBuildings = buildings.filter(b => b.sido === applied.sido && (!applied.district || b.sigungu === applied.district));
   const districtNames = regions.find(r => r.sido === applied.sido)?.sigungus ?? [];
   const resetWorkspace = () => { setFloor(""); setSelectedCode(""); setPanel(false); setChat(false); setMessages([]); };
   const apply = (value: Selection) => {
@@ -109,7 +115,7 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
     setPanel(false); setChat(false); setMessages([]);
   };
   const setField = (key: keyof Selection, value: string) => {
-    setSelection(prev => key === "sido" ? { sido: value, district: "", dong: "", building: "" } : key === "district" ? { ...prev, district: value, dong: "", building: "" } : key === "dong" ? { ...prev, dong: value, building: "" } : { ...prev, building: value });
+    setSelection(prev => key === "sido" ? { sido: value, district: "", building: "" } : key === "district" ? { ...prev, district: value, building: "" } : { ...prev, building: value });
   };
   const total = scopedBuildings.reduce((n, b) => n + countBuilding(b.id), 0);
   const exportCsv = () => {
@@ -140,8 +146,7 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
       <div className="housing-filter-row">
         {([
           ["sido", "시·도", [...new Set(["서울특별시", ...regions.map(r => r.sido)])].map(v => [v, v]), false],
-          ["district", "자치구", (regions.find(r => r.sido === selection.sido)?.sigungus ?? []).map(v => [v, v]), false],
-          ["dong", "동", dongs.map(v => [v, v]), !selection.district],
+          ["district", "시·군·구", (regions.find(r => r.sido === selection.sido)?.sigungus ?? []).map(v => [v, v]), false],
           ["building", "청년안심주택", housingOptions.map(b => [String(b.id), b.name]), !selection.district],
         ] as [keyof Selection, string, string[][], boolean][]).map(([key, label, options, disabled], index) => <Fragment key={key}>
           {index > 0 && <span className="filter-arrow" aria-hidden="true">→</span>}
@@ -164,14 +169,25 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
     {error && <div className="housing-error" role="alert">{error} <button onClick={() => { setError(""); setLoading(true); setRetry(n => n + 1); }}>다시 불러오기</button></div>}
     {loading ? <main className="housing-content"><p className="housing-empty" role="status">민원 현황을 불러오고 있어요…</p></main>
     : !building ? <main className="housing-content">
-      <div className="housing-heading"><div><p>{applied.district ? `${applied.sido} ${applied.district}` : `${applied.sido.replace("특별시", "시")} 전체`}</p><h1>{applied.district ? "청년안심주택별 민원 현황" : "자치구별 민원 현황"}</h1></div></div>
-      <section className="housing-map" aria-label={applied.district ? "주택 선택" : "자치구 선택"}>
+      <div className="housing-heading"><div><p>{applied.district ? `${applied.sido} ${applied.district}` : `${applied.sido.replace("특별시", "시")} 전체`}</p><h1>{applied.district ? "청년안심주택별 민원 현황" : "시·군·구별 민원 현황"}</h1></div></div>
+      <RegionKakaoMap
+        area={applied.district ? `${applied.sido} ${applied.district}` : applied.sido}
+        level={applied.district ? 6 : 9}
+        markers={error ? [] : applied.district
+          ? scopedBuildings.map(b => ({ key: String(b.id), label: b.name, count: countBuilding(b.id), address: b.address || `${b.sido ?? ""} ${b.sigungu ?? ""}` }))
+          : districtNames.map(name => ({ key: name, label: name, count: countDistrict(name), address: `${applied.sido} ${name}` }))}
+        onSelect={key => apply(applied.district ? { ...applied, building: key } : { ...applied, district: key, building: "" })}
+        fallback={<>
+      <section className="housing-map" aria-label={applied.district ? "주택 선택" : "시·군·구 선택"}>
         <span className="map-placeholder">{applied.district || applied.sido.replace("특별시", "시")} 지도</span>
-        {!error && (applied.district ? scopedBuildings.map((b, i) => <button key={b.id} className={`housing-marker ${i === 0 ? "active" : ""}`} style={{ left: `${positions[i % positions.length][0]}%`, top: `${positions[i % positions.length][1] + Math.floor(i / positions.length) * 9}%` }} onClick={() => apply({ ...applied, dong: dongOf(b), building: String(b.id) })}><b>{countBuilding(b.id)}</b><span>{b.name}</span></button>)
-        : (districtNames.map((name, i) => [name, countDistrict(name), 10 + (i % 5) * 18, 14 + Math.floor(i / 5) * 16] as const)).map(([name, count, x, y], i) => <button key={name} className={`housing-marker ${i === 0 ? "active" : ""}`} style={{ left: `${x}%`, top: `${y}%` }} onClick={() => apply({ ...applied, district: name, dong: "", building: "" })}><b>{count}</b><span>{name}</span></button>))}
+        {!error && (applied.district ? scopedBuildings.map((b, i) => <button key={b.id} className={`housing-marker ${i === 0 ? "active" : ""}`} style={{ left: `${positions[i % positions.length][0]}%`, top: `${positions[i % positions.length][1] + Math.floor(i / positions.length) * 9}%` }} onClick={() => apply({ ...applied, building: String(b.id) })}><b>{countBuilding(b.id)}</b><span>{b.name}</span></button>)
+        : (districtNames.map((name, i) => [name, countDistrict(name), 10 + (i % 5) * 18, 14 + Math.floor(i / 5) * 16] as const)).map(([name, count, x, y], i) => <button key={name} className={`housing-marker ${i === 0 ? "active" : ""}`} style={{ left: `${x}%`, top: `${y}%` }} onClick={() => apply({ ...applied, district: name, building: "" })}><b>{count}</b><span>{name}</span></button>))}
         {!error && applied.district && !scopedBuildings.length && <p className="map-empty">등록된 청년안심주택이 없어요.</p>}
       </section>
-      <footer className="housing-map-footer"><span>{applied.district ? "주택 마커를 선택해 건물을 확인하세요." : "자치구 마커를 선택해 상세 현황을 확인하세요."}</span><b>총 {total}건</b></footer>
+        </>}>
+        {!error && applied.district && !scopedBuildings.length && <p className="map-empty on-map">등록된 청년안심주택이 없어요.</p>}
+      </RegionKakaoMap>
+      <footer className="housing-map-footer"><span>{applied.district ? "주택 마커를 선택해 건물을 확인하세요." : "시·군·구 마커를 선택해 상세 현황을 확인하세요."}</span><b>총 {total}건</b></footer>
     </main> : !floor && categoryEntered ? <main className="housing-content">
       <div className="housing-heading"><div><p>{building.name}</p><h1>{category} 민원 현황</h1><div className="housing-subtitle">{category === "공용공간" ? "상세 공간을 선택해 민원 현황을 확인하세요." : "이 유형으로 접수된 민원을 확인하세요."}</div></div><button className="housing-secondary" onClick={() => { setCategoryEntered(false); resetWorkspace(); }}>건물로 돌아가기</button></div>
       {category === "공용공간" && spacesLoading ? <p className="housing-empty" role="status">공용공간을 불러오고 있어요…</p>
@@ -179,8 +195,8 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
         : category === "공용공간" && currentSpaces.length ? <div className="housing-category-cards">{currentSpaces.map(s => <button key={s.code} onClick={() => { setFloor(s.floorLabel ?? "기타"); setSelectedCode(s.code); }}><b>{spaceLabel(s)}</b><span>민원 {buildingReports.filter(r => belongsTo(r, s)).length}건</span><strong>공간 선택 →</strong></button>)}</div>
         : <><div className="housing-subtitle">접수된 민원 {categoryReports.length}건</div>{categoryReports.length ? <section className="housing-category-reports">{categoryReports.map(r => <button key={r.id} className="analysis-report" onClick={() => navigate(`/admin/reports/${r.id}`)}><span><b>{r.summary ?? "공간 민원"}</b><small className="block">{r.locationDescription ?? r.space?.name ?? "위치 미등록"}</small></span><small>{REPORT_STATUS_LABEL[r.status]} →</small></button>)}</section> : <p className="housing-empty">{category === "공용공간" ? "이 건물에 등록된 공용공간과 민원이 없어요." : `아직 ${category}으로 접수된 민원이 없어요.`}</p>}</>}
     </main> : !floor ? <main className="housing-content">
-      <div className="housing-heading"><div><p>{applied.district} · {dongOf(building)}</p><h1>{building.name}</h1><div className="housing-subtitle">공간 유형과 상세 공간을 선택해 민원 현황을 확인하세요.</div></div></div>
-      <section className="housing-building"><span className="map-placeholder">{building.name} 건물 이미지</span><div className="building-stat"><span>등록된 민원</span><b>{buildingReports.length}건</b><small>공간을 선택하면 상세 집계를 볼 수 있어요</small></div></section>
+      <div className="housing-heading"><div><p>{building.address ?? applied.district}</p><h1>{building.name}</h1><div className="housing-subtitle">공간 유형과 상세 공간을 선택해 민원 현황을 확인하세요.</div></div></div>
+      <AdminBuildingScene3D buildingId={building.id} onOpenReport={id => navigate(`/admin/reports/${id}`)} />
       <div className="housing-category-cards">{(["공용공간", "거주공간", "주변공간"] as SpaceCategory[]).map(name => <button key={name} className={category === name ? "active" : ""} onClick={() => enterCategory(name)}><b>{name}</b><span>{name === "공용공간" && spacesLoading ? "공간 정보 불러오는 중…" : spaceCategorySummary(name, buildingReports, currentSpaces)}</span><strong>공간 선택 →</strong></button>)}</div>
       {spacesLoading && <p className="housing-empty" role="status">상세 공간을 불러오고 있어요…</p>}
       {spacesError && <p className="housing-error" role="alert">{spacesError}</p>}
@@ -192,16 +208,21 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
             {messages.map((m, i) => <Fragment key={i}><div className="chat-user">{m.question}</div><div className="chat-bubble answer">{m.answer}</div></Fragment>)}
           </div><form className="chat-compose" onSubmit={e => { e.preventDefault(); ask(question); }}><div><input aria-label="AI 질문 입력" placeholder="선택한 공간의 민원에 대해 질문해 보세요" value={question} onChange={e => setQuestion(e.target.value)} /><button disabled={!question.trim()} aria-label="보내기"><ArrowUp size={21} /></button></div><small>현재는 등록된 민원을 집계한 기본 요약을 제공합니다. AI 연동 준비 중.</small></form>
         </> : <><div className="housing-heading"><div><p>{building.name} · {category}</p><h1>{panel ? spaceLabel(selectedSpace ?? floorSpaces[0]) : `${floor} (${floorSpaces.map(s => s.name).join(", ")})`}</h1></div><button className={panel ? "housing-text-button" : "housing-secondary"} onClick={() => { if (panel) setPanel(false); else { setCategoryEntered(false); resetWorkspace(); } }}>{panel ? "← 전체 도면" : "건물로 돌아가기"}</button></div>
+          {building.has3d && sceneSpace ? <>
+            <div className="housing-space-pins" role="group" aria-label={`${floor} 공간 선택`}>{floorSpaces.map(s => <button key={s.code} type="button" className={`housing-chip ${s.code === selectedCode ? "active" : ""}`} aria-pressed={s.code === selectedCode} onClick={() => { setSelectedCode(s.code); setMessages([]); }}>{spaceLabel(s)} · {buildingReports.filter(r => belongsTo(r, s)).length}건</button>)}</div>
+            <SceneViewer sceneId={sceneSpace.sceneId} mode="view" markers={spaceMarkers} onMarkerClick={id => navigate(`/admin/reports/${id}`)} className={`housing-floor-3d ${panel ? "expanded" : ""}`} />
+          </> : (
           <section className={`housing-floor ${panel ? "expanded" : ""}`} aria-label={`${floor} 공간 선택`}>
-            <span className="floor-placeholder">{floor} 층 도면</span>
-              {floorSpaces.map((s, i) => <button key={s.code} className={`complaint-pin ${s.code === selectedCode ? "selected" : ""}`}
-                style={{ left: `${floorSpaces.length <= 2 ? (panel ? 19 + i * 53 : 28 + i * 36) : 12 + (i % 3) * 32}%`, top: `${floorSpaces.length <= 2 ? (panel ? 24 + i * 23 : 40 + i * 8) : 24 + Math.floor(i / 3) * 40}%` }}
-                aria-pressed={s.code === selectedCode} onClick={() => { setSelectedCode(s.code); setMessages([]); }}>
-                <span className="pin-drop"><span><b>{buildingReports.filter(r => belongsTo(r, s)).length}</b><small>건</small></span></span>
-                <span className="pin-caption"><b>{spaceLabel(s)}</b><small>{buildingReports.filter(r => belongsTo(r, s)).length}건</small></span>
-                <span className="pin-selection">{s.code === selectedCode ? "선택됨" : "선택"}</span>
-              </button>)}
-          </section>
+              <span className="floor-placeholder">{floor} 층 도면</span>
+                {floorSpaces.map((s, i) => <button key={s.code} className={`complaint-pin ${s.code === selectedCode ? "selected" : ""}`}
+                  style={{ left: `${floorSpaces.length <= 2 ? (panel ? 19 + i * 53 : 28 + i * 36) : 12 + (i % 3) * 32}%`, top: `${floorSpaces.length <= 2 ? (panel ? 24 + i * 23 : 40 + i * 8) : 24 + Math.floor(i / 3) * 40}%` }}
+                  aria-pressed={s.code === selectedCode} onClick={() => { setSelectedCode(s.code); setMessages([]); }}>
+                  <span className="pin-drop"><span><b>{buildingReports.filter(r => belongsTo(r, s)).length}</b><small>건</small></span></span>
+                  <span className="pin-caption"><b>{spaceLabel(s)}</b><small>{buildingReports.filter(r => belongsTo(r, s)).length}건</small></span>
+                  <span className="pin-selection">{s.code === selectedCode ? "선택됨" : "선택"}</span>
+                </button>)}
+            </section>
+          )}
           {!panel && <div className="floor-footer"><button className="housing-primary" disabled={!selectedSpace} onClick={() => setPanel(true)}>민원 상세보기</button></div>}
         </>}
       </main>

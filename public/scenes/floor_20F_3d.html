@@ -602,14 +602,14 @@ start();
   document.body.classList.add('capture');
   labelSprites.forEach((s) => { s.visible = true; });
 
-  const red = new THREE.MeshStandardMaterial({ color: 0xe5484d, roughness: 0.35 });
+  const red = new THREE.MeshStandardMaterial({ color: 0x256ef4, roughness: 0.35 });
   const pin = new THREE.Group();
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 20, 16), red);
   head.position.y = 1.1;
   const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 8), new THREE.MeshStandardMaterial({ color: 0x8a1c1f }));
   stem.position.y = 0.5;
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.42, 28),
-    new THREE.MeshBasicMaterial({ color: 0xe5484d, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
+    new THREE.MeshBasicMaterial({ color: 0x256ef4, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.03;
   [head, stem].forEach((m) => { m.castShadow = true; });
