@@ -115,6 +115,8 @@ export interface Report {
   photos: ReportPhoto[];
   timeline: ReportActivity[] | null;
   submittedAt: string | null;
+  /** 처리완료된 시각 */
+  resolvedAt?: string | null;
   createdAt: string;
 }
 

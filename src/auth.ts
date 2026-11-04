@@ -1,13 +1,14 @@
 import { createContext, useContext } from "react";
 import type { User } from "./types";
 import type { PrincipalType } from "./api/http";
+import type { AdminRole } from "./api/auth";
 
 export interface AuthContextType {
   isLoggedIn: boolean;
   isAuthLoading: boolean;
   user: User | null;
   principalType: PrincipalType | null;
-  guestLogin: (role: PrincipalType, code: string) => Promise<PrincipalType>;
+  guestLogin: (role: PrincipalType, code: string, adminRole?: AdminRole) => Promise<PrincipalType>;
   refreshProfile: () => Promise<User>;
   logout: () => void;
 }

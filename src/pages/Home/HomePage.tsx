@@ -12,6 +12,14 @@ import { reportApi } from "@/api";
 import type { Report, ReportSpace, RiskLevel, ReportStatus } from "@/types";
 
 type Tab = "mine" | "others" | "community";
+type StatusFilter = "ALL" | Exclude<ReportStatus, "RECEIVING">;
+
+const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: "ALL", label: "전체" },
+  { id: "RECEIVED", label: "접수완료" },
+  { id: "REVIEWING", label: "검토중" },
+  { id: "RESOLVED", label: "처리완료" },
+];
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "mine", label: "내 신고" },
@@ -51,6 +59,7 @@ export default function HomePage() {
   const navigate = useNavigate();
   const { isLoggedIn, isAuthLoading, user, logout } = useAuth();
   const [tab, setTab] = useState<Tab>("mine");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   // 마지막으로 불러온 탭의 결과. 탭을 바꾸면 결과가 올 때까지 loading 이다.
   const [result, setResult] = useState<{ tab: Tab; reports: ReportItem[]; error: string | null } | null>(null);
   const [mineCount, setMineCount] = useState(0);
@@ -84,7 +93,9 @@ export default function HomePage() {
   }, [isAuthLoading, isLoggedIn, navigate, tab]);
 
   const loading = tab !== "community" && result?.tab !== tab;
-  const reports = loading ? [] : result?.reports ?? [];
+  const tabReports = loading ? [] : result?.reports ?? [];
+  const reports = statusFilter === "ALL" ? tabReports : tabReports.filter((r) => r.status === statusFilter);
+  const statusCount = (id: StatusFilter) => id === "ALL" ? tabReports.length : tabReports.filter((r) => r.status === id).length;
   const error = loading ? null : result?.error ?? null;
 
   const handleReportStart = () => {
@@ -184,10 +195,28 @@ export default function HomePage() {
                   key={item.id}
                   label={item.label}
                   selected={tab === item.id}
-                  onClick={() => setTab(item.id)}
+                  onClick={() => { setTab(item.id); setStatusFilter("ALL"); }}
                 />
               ))}
             </div>
+            {tab !== "community" && (
+              <div className="mt-3 flex gap-1.5 px-1" role="group" aria-label="처리 상태로 거르기">
+                {STATUS_FILTERS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-pressed={statusFilter === item.id}
+                    onClick={() => setStatusFilter(item.id)}
+                    className={`flex h-8 items-center gap-1 rounded-[8px] px-2.5 text-[13px] font-semibold tracking-[-0.3px] transition ${
+                      statusFilter === item.id ? "bg-sogang-50 text-sogang-500" : "bg-neutral-100 text-neutral-500"
+                    }`}
+                  >
+                    {item.label}
+                    <span className={statusFilter === item.id ? "text-sogang-500" : "text-neutral-400"}>{loading ? "" : statusCount(item.id)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto pb-28">
@@ -201,7 +230,9 @@ export default function HomePage() {
                 {error && <p className="px-4 py-20 text-center text-sm text-sogang-500">{error}</p>}
                 {!loading && !error && reports.length === 0 && (
                   <p className="py-20 text-center text-base font-medium leading-[1.48] tracking-[-0.4px] text-neutral-500">
-                    {emptyMessage}
+                    {tabReports.length > 0
+                      ? `${STATUS_FILTERS.find((f) => f.id === statusFilter)?.label} 상태인 신고가 없어요.`
+                      : emptyMessage}
                   </p>
                 )}
                 {!loading && reports.map((report) => (

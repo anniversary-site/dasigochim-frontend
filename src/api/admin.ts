@@ -13,8 +13,23 @@ export interface DepartmentWithCount extends Department {
   pendingCount: number;
 }
 
+export interface AdminScopeInfo {
+  sido: string | null;
+  sigungu: string | null;
+  buildingId: number | null;
+  buildingName: string | null;
+  buildingSido: string | null;
+  buildingSigungu: string | null;
+}
+
+/** role: SUPER(전체) / REGION(지역 담당자) / BUILDING(단지 관리인) */
 export interface AdminMe {
   name: string;
+  role: "SUPER" | "REGION" | "BUILDING";
+  roleLabel: string;
+  scopeLabel: string;
+  departmentName: string;
+  scopes: AdminScopeInfo[];
 }
 
 /** 관리자 3D 지도: 단지의 3D 장면 목록과 접수된 신고 전부 */

@@ -4,6 +4,7 @@ import { useAuth } from "@/auth";
 import BrandMark from "@/components/common/BrandMark";
 import GuestLoginPanel from "@/components/login/GuestLoginPanel";
 import type { PrincipalType } from "@/api/http";
+import type { AdminRole } from "@/api/auth";
 import { GUEST_LOGIN_ENABLED } from "@/constants/login";
 
 export default function LoginPage() {
@@ -29,7 +30,7 @@ export default function LoginPage() {
   );
 
   const handleGuestLogin = useCallback(
-    (role: PrincipalType, code: string) => runLogin(() => guestLogin(role, code)),
+    (role: PrincipalType, code: string, adminRole?: AdminRole) => runLogin(() => guestLogin(role, code, adminRole)),
     [guestLogin, runLogin]
   );
 

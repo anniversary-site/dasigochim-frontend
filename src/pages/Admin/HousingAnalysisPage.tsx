@@ -1,13 +1,14 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
-import { adminApi } from "@/api/admin";
+import { adminApi, type AdminMe } from "@/api/admin";
 import { buildingApi } from "@/api/buildings";
 import { useAuth } from "@/auth";
 import type { Building, BuildingSpace, Region, Report } from "@/types";
 import { REPORT_STATUS_LABEL } from "@/types";
 import BrandMark from "@/components/common/BrandMark";
 import AdminChatWidget, { type ChatCategory } from "@/components/admin/AdminChatWidget";
+import AreaDashboard from "@/components/admin/AreaDashboard";
 import AdminBuildingScene3D from "@/components/admin/AdminBuildingScene3D";
 import RegionKakaoMap from "@/components/admin/RegionKakaoMap";
 import SceneViewer from "@/components/scene/SceneViewer";
@@ -20,6 +21,23 @@ const initial: Selection = { sido: "서울특별시", district: "", building: ""
 const positions = [[44, 39], [25, 22], [18, 54], [59, 61]];
 const spaceLabel = (s: BuildingSpace) => `${s.floorLabel ?? ""} ${s.name}`.trim();
 const belongsTo = (r: Report, s: BuildingSpace) => r.space?.code === s.code || (!r.space?.code && r.space?.name === s.name);
+/** 담당 범위 안 단지인지 */
+function inScope(me: AdminMe, b: Building) {
+  if (me.role === "SUPER") return true;
+  return me.scopes.some(s => s.buildingId ? s.buildingId === b.id : b.sido === s.sido && (!s.sigungu || b.sigungu === s.sigungu));
+}
+
+/** 첫 화면 = 담당 구역의 맨 위 (전체 관리자는 서울 전체) */
+function rootOf(me: AdminMe, buildings: Building[]): Selection {
+  const first = me.scopes[0];
+  if (me.role === "SUPER" || !first) return initial;
+  if (first.buildingId) {
+    const b = buildings.find(x => x.id === first.buildingId);
+    return { sido: first.buildingSido ?? b?.sido ?? initial.sido, district: first.buildingSigungu ?? b?.sigungu ?? "", building: String(first.buildingId) };
+  }
+  return { sido: first.sido ?? initial.sido, district: me.scopes.length === 1 ? first.sigungu ?? "" : "", building: "" };
+}
+
 function groupProblems(reports: Report[]) {
   const groups = new Map<string, number>();
   reports.forEach(r => { const title = r.summary ?? "내용 미분류"; groups.set(title, (groups.get(title) ?? 0) + 1); });
@@ -47,18 +65,29 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   const [retry, setRetry] = useState(0);
   const [account, setAccount] = useState(false);
   const [reviewIds, setReviewIds] = useState<number[]>([]);
+  const [me, setMe] = useState<AdminMe | null>(null);
+  const [root, setRoot] = useState<Selection>(initial);
 
   useEffect(() => {
     let active = true;
     async function load() {
       try {
-        const [rs, bs, first] = await Promise.all([buildingApi.regions(), buildingApi.list(), adminApi.reports({ size: 100 })]);
+        const [rs, bs, first, admin] = await Promise.all([buildingApi.regions(), buildingApi.list(), adminApi.reports({ size: 100 }), adminApi.me()]);
         const all = [...first.content];
         for (let page = 1; page < first.totalPages && active; page++) {
           const next = await adminApi.reports({ size: 100, page });
           all.push(...next.content);
         }
-        if (active) { setRegions(rs); setBuildings(bs); setReports(all); setError(""); }
+        if (active) {
+          // 담당 범위 밖 단지·지역은 화면에서도 뺀다 (신고는 서버가 이미 걸러 준다).
+          const scoped = bs.filter(b => inScope(admin, b));
+          const scopedRegions = admin.role === "SUPER" ? rs : rs
+            .map(r => ({ ...r, sigungus: r.sigungus.filter(g => scoped.some(b => b.sido === r.sido && b.sigungu === g)) }))
+            .filter(r => r.sigungus.length);
+          const start = rootOf(admin, scoped);
+          setMe(admin); setRegions(scopedRegions); setBuildings(scoped); setReports(all); setError("");
+          setRoot(start); setSelection(start); setApplied(start); setSpacesLoading(Boolean(start.building));
+        }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "민원 현황을 불러오지 못했어요."); }
       finally { if (active) setLoading(false); }
     }
@@ -89,6 +118,12 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   const categorySpaces = category === "공용공간" || category === "전체" ? currentSpaces : [];
   const floorSpaces = categorySpaces.filter(s => (s.floorLabel ?? "기타") === floor);
   const problems = groupProblems(scopedReports);
+  // 담당 범위에 따라 잠그는 선택 칸
+  const lockSido = !!me && me.role !== "SUPER" && regions.length <= 1;
+  const lockDistrict = !!me && (me.role === "BUILDING" || (me.role === "REGION" && me.scopes.length === 1 && !!me.scopes[0].sigungu));
+  const lockBuilding = !!me && me.role === "BUILDING" && buildings.length <= 1;
+  const atRoot = applied.sido === root.sido && applied.district === root.district && applied.building === root.building && !categoryEntered && !floor;
+  const dashboardTitle = !me || me.role === "SUPER" ? "전국 전체" : me.scopeLabel;
   const regionLabel = applied.district ? `${applied.sido} ${applied.district}` : `${applied.sido.replace("특별시", "시")} 전체`;
   // 오른쪽 아래 챗봇이 처음 열릴 때 쓸 지금 화면의 범위
   const chatCategory = (categoryEntered || floor) && ["공용공간", "거주공간", "주변공간"].includes(category) ? category as ChatCategory : undefined;
@@ -124,8 +159,9 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   const total = scopedBuildings.reduce((n, b) => n + countBuilding(b.id), 0);
   return <div className="housing-app">
     <header className="housing-header">
-      <button className="housing-brand" onClick={() => apply(initial)}><BrandMark /><span>청년안심주택 민원분석</span></button>
+      <button className="housing-brand" onClick={() => apply(root)}><BrandMark /><span>청년안심주택 민원분석</span></button>
       <nav aria-label="사용자 메뉴">
+        {me && <span className="housing-role" title={`${me.name} · ${me.departmentName}`}>{me.roleLabel} · {me.scopeLabel}</span>}
         <Link to="/admin/reports">신고 관리</Link>
         <button onClick={() => setAccount(true)}>마이페이지</button><i />
         <button onClick={() => { logout(); navigate("/login"); }}>로그아웃</button>
@@ -137,11 +173,12 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
           ["sido", "시·도", [...new Set(["서울특별시", ...regions.map(r => r.sido)])].map(v => [v, v]), false],
           ["district", "시·군·구", (regions.find(r => r.sido === selection.sido)?.sigungus ?? []).map(v => [v, v]), false],
           ["building", "청년안심주택", housingOptions.map(b => [String(b.id), b.name]), !selection.district],
-        ] as [keyof Selection, string, string[][], boolean][]).map(([key, label, options, disabled], index) => <Fragment key={key}>
+        ] as [keyof Selection, string, string[][], boolean][]).map(([key, label, options, disabled]) => [key, label, options,
+          disabled || (key === "sido" && lockSido) || (key === "district" && lockDistrict) || (key === "building" && lockBuilding)] as const).map(([key, label, options, disabled], index) => <Fragment key={key}>
           {index > 0 && <span className="filter-arrow" aria-hidden="true">→</span>}
           <label className={`housing-select ${disabled ? "is-disabled" : ""}`}><span>{label}</span>
             <select value={selection[key]} disabled={disabled || loading} onChange={e => setField(key, e.target.value)}>
-              {key !== "sido" && <option value="">전체</option>}
+              {key !== "sido" && !(key === "district" && lockDistrict) && !(key === "building" && lockBuilding) && <option value="">전체</option>}
               {options.map(([value, name]) => <option key={value} value={value}>{name}</option>)}
             </select>
           </label>
@@ -156,6 +193,7 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
       </div>}
     </form>
     {error && <div className="housing-error" role="alert">{error} <button onClick={() => { setError(""); setLoading(true); setRetry(n => n + 1); }}>다시 불러오기</button></div>}
+    {!loading && !error && atRoot && <AreaDashboard title={dashboardTitle} reports={reports} buildings={building ? [building] : scopedBuildings} />}
     {loading ? <main className="housing-content"><p className="housing-empty" role="status">민원 현황을 불러오고 있어요…</p></main>
     : !building ? <main className="housing-content">
       <div className="housing-heading"><div><p>{regionLabel}</p><h1>{applied.district ? "청년안심주택별 민원 현황" : "시·군·구별 민원 현황"}</h1></div></div>
@@ -221,6 +259,6 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
     </div>}
     {!loading && <AdminChatWidget regions={regions} buildings={buildings} reports={reports} pageScope={pageScope} />}
     {reviewIds.length > 0 && <div className="housing-modal-backdrop" onClick={() => setReviewIds([])}><section className="housing-modal analysis-review-modal" role="dialog" aria-modal="true" aria-label="코드북 미분류 민원 검토" onClick={e => e.stopPropagation()}><div><h2>코드북 미분류 민원 검토</h2><button autoFocus aria-label="검토 닫기" onClick={() => setReviewIds([])}><X size={20} /></button></div><p>선택한 공간에서 미분류된 민원의 원문을 확인하세요.</p>{reviewReports.map(r => <Link key={r.id} className="analysis-report" to={`/admin/reports/${r.id}`}><span>{r.summary ?? "공간 민원"}</span><small>원문 확인 →</small></Link>)}{!reviewReports.length && <p>현재 목록에서 해당 민원을 찾을 수 없어요.</p>}</section></div>}
-    {account && <div className="housing-modal-backdrop" onClick={() => setAccount(false)}><section className="housing-modal" role="dialog" aria-modal="true" aria-label="마이페이지" onClick={e => e.stopPropagation()}><div><h2>마이페이지</h2><button autoFocus aria-label="닫기" onClick={() => setAccount(false)}><X size={20} /></button></div><p>관리자 계정으로 접속 중입니다.</p><button className="housing-primary" onClick={() => setAccount(false)}>확인</button></section></div>}
+    {account && <div className="housing-modal-backdrop" onClick={() => setAccount(false)}><section className="housing-modal" role="dialog" aria-modal="true" aria-label="마이페이지" onClick={e => e.stopPropagation()}><div><h2>마이페이지</h2><button autoFocus aria-label="닫기" onClick={() => setAccount(false)}><X size={20} /></button></div><p>{me ? <>{me.name} · {me.roleLabel}<br />담당 구역: {me.scopeLabel}<br />부서: {me.departmentName}</> : "관리자 계정으로 접속 중입니다."}</p><button className="housing-primary" onClick={() => setAccount(false)}>확인</button></section></div>}
   </div>;
 }

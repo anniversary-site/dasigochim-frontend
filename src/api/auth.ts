@@ -8,11 +8,13 @@ export interface AuthResult {
 }
 
 export type AdminAuthResult = AuthResult;
+/** 관리자 역할 — 전체 관리자 / 지역 담당자 / 단지 관리인 */
+export type AdminRole = "SUPER" | "REGION" | "BUILDING";
 
 export const authApi = {
   // 테스트 로그인 — 백엔드 GUEST_LOGIN_ENABLED가 켜져 있고 접근 코드가 맞을 때만 발급
-  async guestLogin(role: PrincipalType, code: string): Promise<AuthResult> {
-    const res = await http.post<AuthResult>("/auth/guest", { role, code });
+  async guestLogin(role: PrincipalType, code: string, adminRole?: AdminRole): Promise<AuthResult> {
+    const res = await http.post<AuthResult>("/auth/guest", { role, code, adminRole });
     tokenStore.set(res.accessToken, res.refreshToken, res.principalType);
     return res;
   },

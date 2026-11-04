@@ -1,3 +1,4 @@
+import type { AdminRole } from "@/api/auth";
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useCallback, useEffect } from 'react'
 import { authApi, meApi, tokenStore } from './api'
@@ -43,7 +44,7 @@ export default function App() {
   }, [loadProfile])
 
   const guestLogin = useCallback(
-    async (role: PrincipalType, code: string) => completeLogin(await authApi.guestLogin(role, code)),
+    async (role: PrincipalType, code: string, adminRole?: AdminRole) => completeLogin(await authApi.guestLogin(role, code, adminRole)),
     [completeLogin]
   )
 

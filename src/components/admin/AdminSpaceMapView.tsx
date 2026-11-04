@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildingApi } from "@/api";
+import { adminApi, type AdminMe } from "@/api/admin";
 import type { Building, Region } from "@/types";
 import AdminBuildingScene3D from "@/components/admin/AdminBuildingScene3D";
 
@@ -35,11 +36,20 @@ export default function AdminSpaceMapView({ onOpenReport }: { onOpenReport: (rep
   const [housings, setHousings] = useState<{ key: string; items: Building[] } | null>(null);
   const [buildingId, setBuildingId] = useState<number | "">(last?.buildingId ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [me, setMe] = useState<AdminMe | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    buildingApi.regions()
-      .then((items) => { if (!cancelled) setRegions(items); })
+    Promise.all([buildingApi.regions(), adminApi.me()])
+      .then(([items, admin]) => {
+        if (cancelled) return;
+        setMe(admin);
+        // 담당 범위 밖 지역은 고를 수 없게 뺀다.
+        setRegions(admin.role === "SUPER" ? items : items
+          .map((r) => ({ ...r, sigungus: r.sigungus.filter((g) => admin.scopes.some((s) =>
+            (s.buildingId ? s.buildingSido === r.sido && s.buildingSigungu === g : s.sido === r.sido && (!s.sigungu || s.sigungu === g)))) }))
+          .filter((r) => r.sigungus.length));
+      })
       .catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "지역 목록을 불러오지 못했습니다."); });
     return () => { cancelled = true; };
   }, []);
@@ -56,7 +66,8 @@ export default function AdminSpaceMapView({ onOpenReport }: { onOpenReport: (rep
   }, [regionKey]);
 
   const sigungus = regions.find((region) => region.sido === sido)?.sigungus ?? [];
-  const housingItems = housings?.key === regionKey ? housings.items : [];
+  const housingItems = (housings?.key === regionKey ? housings.items : []).filter((b) => !me || me.role === "SUPER"
+    || me.scopes.some((s) => s.buildingId ? s.buildingId === b.id : b.sido === s.sido && (!s.sigungu || b.sigungu === s.sigungu)));
   const chooseBuilding = (value: string) => {
     const id = value ? Number(value) : "";
     setBuildingId(id);
