@@ -166,13 +166,11 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   return <div className="housing-app">
     <header className="housing-header">
       <button className="housing-brand" onClick={() => apply(root)}><BrandMark /><span>청년안심주택 민원분석</span></button>
-      <div className="housing-tabs" role="tablist" aria-label="보기">
-        {([["dashboard", "대시보드"], ["map", "민원 지도"]] as const).map(([id, label]) =>
-          <button key={id} type="button" role="tab" aria-selected={view === id} className={view === id ? "active" : ""} onClick={() => setView(id)}>{label}</button>)}
-      </div>
       <nav aria-label="사용자 메뉴">
         {me && <span className="housing-role" title={`${me.name} · ${me.departmentName}`}>{me.roleLabel} · {me.scopeLabel}</span>}
-        <Link to="/admin/reports">신고 관리</Link>
+        {([["dashboard", "대시보드"], ["map", "민원 지도"]] as const).map(([id, label]) =>
+          <button key={id} type="button" className={`housing-nav-tab ${view === id ? "active" : ""}`} aria-current={view === id ? "page" : undefined} onClick={() => setView(id)}>{label}</button>)}
+        <Link to="/admin/reports">신고 관리</Link><i />
         <button onClick={() => setAccount(true)}>마이페이지</button><i />
         <button onClick={() => { logout(); navigate("/login"); }}>로그아웃</button>
       </nav>
