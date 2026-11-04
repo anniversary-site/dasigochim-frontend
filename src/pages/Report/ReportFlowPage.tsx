@@ -106,6 +106,9 @@ export default function ReportFlowPage() {
   const [dongInput, setDongInput] = useState("");
   const [hoInput, setHoInput] = useState("");
   const [unit, setUnit] = useState<BuildingUnit | null>(null);
+  // 고른 단지의 세대 목록. 못 불러오면 null 로 두고 예전처럼 서버에 하나씩 물어본다.
+  const [unitList, setUnitList] = useState<{ buildingId: number; units: BuildingUnit[] } | null>(null);
+  const [otherUnit, setOtherUnit] = useState(false);
   const [spaces, setSpaces] = useState<BuildingSpace[]>([]);
   const [selectedSpace, setSelectedSpace] = useState<BuildingSpace | null>(null);
   const [floorInput, setFloorInput] = useState("");
@@ -131,6 +134,16 @@ export default function ReportFlowPage() {
     null | "hazard" | "improvement"
   >(null);
   const [draft, setDraft] = useState("");
+
+  const unitListHousingId = stage === "unitInput" ? selectedHousing?.id : undefined;
+  useEffect(() => {
+    if (unitListHousingId === undefined || unitList?.buildingId === unitListHousingId) return;
+    let cancelled = false;
+    buildingApi.units(unitListHousingId)
+      .then((units) => { if (!cancelled) setUnitList({ buildingId: unitListHousingId, units }); })
+      .catch(() => { /* 목록이 없으면 제출할 때 서버에서 확인한다 */ });
+    return () => { cancelled = true; };
+  }, [unitListHousingId, unitList?.buildingId]);
 
   useEffect(() => {
     if (!isAuthLoading && !isLoggedIn) {
@@ -392,8 +405,9 @@ export default function ReportFlowPage() {
     if (kind === "UNIT") {
       addMsgs(
         { role: "user", text: "세대 내부" },
-        { role: "ai", text: "동·호수를 알려주세요. 해당 세대 타입의 3D 평면을 보여드릴게요." },
+        { role: "ai", text: "어느 세대인지 알려주세요. 해당 세대 타입의 3D 평면을 보여드릴게요." },
       );
+      setOtherUnit(false);
       moveTo("unitInput", from);
       return;
     }
@@ -414,6 +428,23 @@ export default function ReportFlowPage() {
     }
   };
 
+  // 세대 입력 — 목록이 있으면 입력하는 동안 바로 맞는 세대를 찾는다.
+  const cleanUnitText = (value: string | null | undefined, suffix: string) =>
+    (value ?? "").replace(/\s/g, "").replace(new RegExp(`${suffix}$`), "");
+  const loadedUnits = selectedHousing && unitList?.buildingId === selectedHousing.id ? unitList.units : null;
+  const unitsHaveDong = loadedUnits ? loadedUnits.some((u) => u.dong) : true;
+  const typedHo = cleanUnitText(hoInput, "호");
+  const typedDong = cleanUnitText(dongInput, "동");
+  const matchedUnit = loadedUnits && typedHo
+    ? loadedUnits.find((u) => u.ho === typedHo && (!u.dong || !typedDong || u.dong === typedDong))
+    : undefined;
+  const myUnit = loadedUnits && selectedHousing && user?.building?.id === selectedHousing.id && user.ho
+    ? loadedUnits.find((u) => u.ho === cleanUnitText(user.ho, "호")
+      && (!u.dong || !user.dong || u.dong === cleanUnitText(user.dong, "동")))
+    : undefined;
+  const showUnitInput = !myUnit || otherUnit;
+  const unitSubmitDisabled = !hoInput.trim() || submitting || (loadedUnits !== null && !matchedUnit);
+
   const openScene = (nextSceneId: string, userText: string, from: Snapshot) => {
     setSceneId(nextSceneId);
     setPin(null);
@@ -425,16 +456,25 @@ export default function ReportFlowPage() {
     moveTo("scene", from);
   };
 
+  const unitLabel = (u: BuildingUnit) => `${u.dong ? `${u.dong}동 ` : ""}${u.ho}호 (${u.unitType} TYPE)`;
+  const chooseUnit = (found: BuildingUnit) => {
+    setUnit(found);
+    openScene(found.sceneId, unitLabel(found), snapshot());
+  };
+
   const handleUnitSubmit = async () => {
     if (!selectedHousing || !hoInput.trim() || submitting) return;
+    if (loadedUnits) {
+      if (matchedUnit) chooseUnit(matchedUnit);
+      return;
+    }
     const from = snapshot();
     setSubmitting(true);
     setApiError(null);
     try {
       const found = await buildingApi.lookupUnit(selectedHousing.id, hoInput.trim(), dongInput.trim() || undefined);
       setUnit(found);
-      const dongText = found.dong ? `${found.dong}동 ` : "";
-      openScene(found.sceneId, `${dongText}${found.ho}호 (${found.unitType} TYPE)`, from);
+      openScene(found.sceneId, unitLabel(found), from);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "세대를 찾지 못했습니다.");
     } finally {
@@ -1090,39 +1130,71 @@ export default function ReportFlowPage() {
       {stage === "unitInput" && (
         <div className="p-2.5 shrink-0">
           <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5 flex flex-col gap-3">
-            <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">동·호수를 입력해 주세요.</p>
-            <div className="flex gap-2">
-              <div className="w-[38%]">
-                <input
-                  className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]"
-                  inputMode="numeric"
-                  placeholder="동 (없으면 비움)"
-                  value={dongInput}
-                  onChange={(e) => setDongInput(e.target.value)}
-                />
-              </div>
-              <div className="flex-1">
-                <input
-                  autoFocus
-                  className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]"
-                  inputMode="numeric"
-                  placeholder="호수 (예: 1203)"
-                  value={hoInput}
-                  onChange={(e) => setHoInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void handleUnitSubmit();
-                  }}
-                />
-              </div>
-            </div>
-            <button
-              onClick={() => void handleUnitSubmit()}
-              disabled={!hoInput.trim() || submitting}
-              className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
-              style={{ backgroundColor: BRAND_BLUE }}
-            >
-              {submitting ? "세대를 찾는 중..." : "3D 평면 보기"}
-            </button>
+            {myUnit && (
+              <>
+                <button
+                  onClick={() => chooseUnit(myUnit)}
+                  className="w-full rounded-[12px] border border-[#256ef4] bg-[#ecf2fe] px-4 py-3 text-left transition active:scale-[0.99]"
+                >
+                  <span className="block text-xs font-semibold text-[#256ef4]">우리 집</span>
+                  <span className="mt-0.5 block text-base font-semibold text-[#191f28] tracking-[-0.3px]">{unitLabel(myUnit)}</span>
+                </button>
+                {!otherUnit && (
+                  <button
+                    onClick={() => { setOtherUnit(true); setHoInput(""); setDongInput(""); }}
+                    className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white text-sm font-medium text-[#4e5968] transition active:bg-[#f2f4f6]"
+                  >
+                    다른 세대 신고하기
+                  </button>
+                )}
+              </>
+            )}
+            {showUnitInput && (
+              <>
+                <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
+                  {unitsHaveDong ? "동·호수를 입력해 주세요." : "호수를 입력해 주세요."}
+                </p>
+                <div className="flex gap-2">
+                  {unitsHaveDong && (
+                    <div className="w-[38%]">
+                      <input
+                        className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]"
+                        inputMode="numeric"
+                        placeholder="동 (없으면 비움)"
+                        value={dongInput}
+                        onChange={(e) => setDongInput(e.target.value)}
+                      />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      autoFocus
+                      className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none transition focus:border-[#256ef4] placeholder:text-[#C4C4C4]"
+                      inputMode="numeric"
+                      placeholder="호수 (예: 1203)"
+                      value={hoInput}
+                      onChange={(e) => setHoInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void handleUnitSubmit();
+                      }}
+                    />
+                  </div>
+                </div>
+                {loadedUnits && typedHo && (
+                  <p className={`text-xs font-medium tracking-[-0.24px] ${matchedUnit ? "text-[#256ef4]" : "text-[#e5484d]"}`}>
+                    {matchedUnit ? `${unitLabel(matchedUnit)} 세대예요.` : "이 청년주택에 없는 호수예요. 다시 확인해 주세요."}
+                  </p>
+                )}
+                <button
+                  onClick={() => void handleUnitSubmit()}
+                  disabled={unitSubmitDisabled}
+                  className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
+                  style={unitSubmitDisabled ? undefined : { backgroundColor: BRAND_BLUE }}
+                >
+                  {submitting ? "세대를 찾는 중..." : "3D 평면 보기"}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

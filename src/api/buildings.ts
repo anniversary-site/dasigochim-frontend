@@ -12,6 +12,8 @@ export const buildingApi = {
   },
   get: (id: number) => http.get<Building>(`/buildings/${id}`),
   spaces: (id: number) => http.get<BuildingSpace[]>(`/buildings/${id}/spaces`),
+  /** 단지의 세대 전체 — 호수를 입력하는 동안 바로 확인한다 */
+  units: (id: number) => http.get<BuildingUnit[]>(`/buildings/${id}/units`),
   lookupUnit: (id: number, ho: string, dong?: string) => {
     const params = new URLSearchParams({ ho });
     if (dong) params.set("dong", dong);
