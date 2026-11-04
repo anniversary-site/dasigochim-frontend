@@ -30,10 +30,13 @@ function periodStart(period: Period, now: Date) {
  * 관리자 첫 화면 대시보드 — 담당 구역 전체를 한눈에.
  * 신고 목록은 서버가 이미 담당 범위로 걸러 보내므로 여기서는 기간만 건다.
  */
-export default function AreaDashboard({ title, reports, buildings }: {
+export default function AreaDashboard({ title, subtitle, reports, buildings, onSelectBuilding }: {
   title: string;
+  subtitle?: string;
   reports: Report[];
   buildings: Building[];
+  /** 청년주택별 순위에서 주택을 누르면 그 주택으로 조회 */
+  onSelectBuilding?: (buildingId: number) => void;
 }) {
   const [period, setPeriod] = useState<Period>("30d");
   const [hoverMonth, setHoverMonth] = useState<number | null>(null);
@@ -75,11 +78,11 @@ export default function AreaDashboard({ title, reports, buildings }: {
 
   // 순위: 여러 단지면 청년주택별, 한 단지면 공간별
   const multi = new Set(reports.map((r) => r.building?.id).filter(Boolean)).size > 1 || buildings.length > 1;
-  const rankingRows = new Map<string, { label: string; total: number; open: number; resolvedMs: number; resolvedN: number }>();
+  const rankingRows = new Map<string, { label: string; buildingId?: number; total: number; open: number; resolvedMs: number; resolvedN: number }>();
   inPeriod.forEach((r) => {
       const label = multi ? r.building?.name ?? "미등록"
         : r.space?.type === "UNIT" ? `세대 ${r.space.unitType ? `${r.space.unitType} TYPE` : "내부"}` : r.space?.name ?? (r.indoor === false ? "주변공간" : "기타");
-      const row = rankingRows.get(label) ?? { label, total: 0, open: 0, resolvedMs: 0, resolvedN: 0 };
+      const row = rankingRows.get(label) ?? { label, buildingId: multi ? r.building?.id : undefined, total: 0, open: 0, resolvedMs: 0, resolvedN: 0 };
       row.total++;
       if (r.status !== "RESOLVED") row.open++;
       if (r.resolvedAt) { row.resolvedMs += new Date(r.resolvedAt).getTime() - submitted(r); row.resolvedN++; }
@@ -90,7 +93,7 @@ export default function AreaDashboard({ title, reports, buildings }: {
   return (
     <section className="area-dashboard" aria-label={`${title} 대시보드`}>
       <div className="dash-head">
-        <div><p>담당 구역 현황</p><h2>{title}</h2></div>
+        <div><p>{subtitle ?? "민원 현황 대시보드"}</p><h2>{title}</h2></div>
         <div className="dash-periods" role="group" aria-label="기간">
           {PERIODS.map((p) => <button key={p.id} type="button" className={`housing-chip ${period === p.id ? "active" : ""}`} aria-pressed={period === p.id} onClick={() => setPeriod(p.id)}>{p.label}</button>)}
         </div>
@@ -140,10 +143,11 @@ export default function AreaDashboard({ title, reports, buildings }: {
         </div>
 
         <div className="dash-card dash-wide">
-          <div className="dash-card-head"><h3>{multi ? "청년주택별 현황" : "공간별 현황"}</h3><small>미처리 많은 순</small></div>
+          <div className="dash-card-head"><h3>{multi ? "청년주택별 현황" : "공간별 현황"}</h3><small>미처리 많은 순{onSelectBuilding && multi ? " · 이름을 누르면 그 주택 대시보드" : ""}</small></div>
           {ranking.length ? <table className="dash-table">
             <thead><tr><th>{multi ? "청년주택" : "공간"}</th><th>민원</th><th>미처리</th><th>평균 처리</th></tr></thead>
-            <tbody>{ranking.map((row) => <tr key={row.label}><td>{row.label}</td><td>{row.total}</td><td className={row.open ? "is-open" : ""}>{row.open}</td><td>{row.resolvedN ? `${days(row.resolvedMs / row.resolvedN)}일` : "—"}</td></tr>)}</tbody>
+            <tbody>{ranking.map((row) => <tr key={row.label}><td>{onSelectBuilding && row.buildingId
+              ? <button type="button" className="dash-link" onClick={() => onSelectBuilding(row.buildingId!)}>{row.label}</button> : row.label}</td><td>{row.total}</td><td className={row.open ? "is-open" : ""}>{row.open}</td><td>{row.resolvedN ? `${days(row.resolvedMs / row.resolvedN)}일` : "—"}</td></tr>)}</tbody>
           </table> : <p className="housing-muted">이 기간에 접수된 민원이 없어요.</p>}
         </div>
 

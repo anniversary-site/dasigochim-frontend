@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { adminApi, type AdminMe } from "@/api/admin";
 import { buildingApi } from "@/api/buildings";
@@ -47,6 +47,10 @@ function groupProblems(reports: Report[]) {
 export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnalyses?: Readonly<Record<string, SpaceAnalysisData>> }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  // 상단 탭: 대시보드(기본) / 민원 지도(지도 · 3D · 신고). 주소에 남겨 새로고침·뒤로가기에도 유지한다.
+  const [params, setParams] = useSearchParams();
+  const view = params.get("view") === "map" ? "map" : "dashboard";
+  const setView = (next: "dashboard" | "map") => setParams(prev => { const p = new URLSearchParams(prev); if (next === "map") p.set("view", "map"); else p.delete("view"); return p; }, { replace: true });
   const [selection, setSelection] = useState<Selection>(initial);
   const [applied, setApplied] = useState<Selection>(initial);
   const [regions, setRegions] = useState<Region[]>([]);
@@ -122,8 +126,6 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   const lockSido = !!me && me.role !== "SUPER" && regions.length <= 1;
   const lockDistrict = !!me && (me.role === "BUILDING" || (me.role === "REGION" && me.scopes.length === 1 && !!me.scopes[0].sigungu));
   const lockBuilding = !!me && me.role === "BUILDING" && buildings.length <= 1;
-  const atRoot = applied.sido === root.sido && applied.district === root.district && applied.building === root.building && !categoryEntered && !floor;
-  const dashboardTitle = !me || me.role === "SUPER" ? "전국 전체" : me.scopeLabel;
   const regionLabel = applied.district ? `${applied.sido} ${applied.district}` : `${applied.sido.replace("특별시", "시")} 전체`;
   // 오른쪽 아래 챗봇이 처음 열릴 때 쓸 지금 화면의 범위
   const chatCategory = (categoryEntered || floor) && ["공용공간", "거주공간", "주변공간"].includes(category) ? category as ChatCategory : undefined;
@@ -156,10 +158,18 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   const setField = (key: keyof Selection, value: string) => {
     setSelection(prev => key === "sido" ? { sido: value, district: "", building: "" } : key === "district" ? { ...prev, district: value, building: "" } : { ...prev, building: value });
   };
+  // 대시보드는 지금 조회한 범위(시·도 / 시·군·구 / 청년주택)를 그대로 따른다.
+  const selectionBuildings = building ? [building] : scopedBuildings;
+  const selectionIds = new Set(selectionBuildings.map(b => b.id));
+  const selectionReports = reports.filter(r => r.building?.id !== undefined && selectionIds.has(r.building.id));
   const total = scopedBuildings.reduce((n, b) => n + countBuilding(b.id), 0);
   return <div className="housing-app">
     <header className="housing-header">
       <button className="housing-brand" onClick={() => apply(root)}><BrandMark /><span>청년안심주택 민원분석</span></button>
+      <div className="housing-tabs" role="tablist" aria-label="보기">
+        {([["dashboard", "대시보드"], ["map", "민원 지도"]] as const).map(([id, label]) =>
+          <button key={id} type="button" role="tab" aria-selected={view === id} className={view === id ? "active" : ""} onClick={() => setView(id)}>{label}</button>)}
+      </div>
       <nav aria-label="사용자 메뉴">
         {me && <span className="housing-role" title={`${me.name} · ${me.departmentName}`}>{me.roleLabel} · {me.scopeLabel}</span>}
         <Link to="/admin/reports">신고 관리</Link>
@@ -185,7 +195,7 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
         </Fragment>)}
         <button className="housing-primary query-button" disabled={loading}>조회하기</button>
       </div>
-      {building && <div className="housing-space-filters"><span>공간 유형</span>
+      {building && view === "map" && <div className="housing-space-filters"><span>공간 유형</span>
         {["전체", "공용공간", "거주공간", "주변공간"].map(c => <button type="button" className={`housing-chip ${(categoryEntered || floor ? category === c : c === "전체") ? "active" : ""}`} key={c} onClick={() => enterCategory(c)}>{c}</button>)}
         <i /><span>상세 공간</span>
         {[...new Set(categorySpaces.map(s => s.floorLabel ?? "기타"))].map(f => <button type="button" key={f} className={`housing-chip ${floor === f ? "active" : ""}`} onClick={() => pickFloor(f)}>{f} {categorySpaces.find(s => (s.floorLabel ?? "기타") === f)?.name}</button>)}
@@ -193,8 +203,11 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
       </div>}
     </form>
     {error && <div className="housing-error" role="alert">{error} <button onClick={() => { setError(""); setLoading(true); setRetry(n => n + 1); }}>다시 불러오기</button></div>}
-    {!loading && !error && atRoot && <AreaDashboard title={dashboardTitle} reports={reports} buildings={building ? [building] : scopedBuildings} />}
     {loading ? <main className="housing-content"><p className="housing-empty" role="status">민원 현황을 불러오고 있어요…</p></main>
+    : view === "dashboard" ? (error ? null : <AreaDashboard key={`${applied.sido}|${applied.district}|${applied.building}`}
+        title={building?.name ?? regionLabel} subtitle={building ? building.address ?? regionLabel : undefined}
+        reports={selectionReports} buildings={selectionBuildings}
+        onSelectBuilding={building ? undefined : id => apply({ ...applied, district: buildings.find(b => b.id === id)?.sigungu ?? applied.district, building: String(id) })} />)
     : !building ? <main className="housing-content">
       <div className="housing-heading"><div><p>{regionLabel}</p><h1>{applied.district ? "청년안심주택별 민원 현황" : "시·군·구별 민원 현황"}</h1></div></div>
       <RegionKakaoMap
