@@ -5,7 +5,7 @@ import type { Report } from "@/types";
 import SceneViewer, { type SceneMarker } from "@/components/scene/SceneViewer";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
 import RiskBadge from "@/components/common/RiskBadge";
-import { markerColor } from "@/utils/reportMarker";
+import { markerColor, markerFaded } from "@/utils/reportMarker";
 
 type StatusFilter = "all" | "unresolved";
 
@@ -93,7 +93,7 @@ export default function AdminBuildingScene3D({ buildingId, onOpenReport, initial
 
   const inScene = filtered.filter((r) => r.space?.sceneId === sceneId && r.space.pin);
   const markers: SceneMarker[] = useMemo(() => inScene.map((r) => ({
-    id: r.id, x: r.space!.pin!.x, y: r.space!.pin!.y, z: r.space!.pin!.z, color: markerColor(r),
+    id: r.id, x: r.space!.pin!.x, y: r.space!.pin!.y, z: r.space!.pin!.z, color: markerColor(r), faded: markerFaded(r),
   })), [inScene]);
   const selected = filtered.find((r) => r.id === selectedId) ?? null;
 
@@ -123,7 +123,7 @@ export default function AdminBuildingScene3D({ buildingId, onOpenReport, initial
           <Legend color="#e5484d" label="높음" />
           <Legend color="#f2994a" label="중간" />
           <Legend color="#e8b931" label="낮음" />
-          <Legend color="#9e9e9e" label="처리완료" />
+          <Legend color="#9e9e9e" label="처리완료(반투명)" faded />
           <span className="ml-1 font-medium text-neutral-800">신고 {fixedSceneId ? inScene.length : filtered.length}건</span>
         </div>
       </div>
@@ -180,10 +180,10 @@ export default function AdminBuildingScene3D({ buildingId, onOpenReport, initial
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
+function Legend({ color, label, faded }: { color: string; label: string; faded?: boolean }) {
   return (
     <span className="flex items-center gap-1">
-      <span className="size-2.5 rounded-full" style={{ backgroundColor: color }} />
+      <span className="size-2.5 rounded-full" style={{ backgroundColor: color, opacity: faded ? 0.35 : 1 }} />
       {label}
     </span>
   );

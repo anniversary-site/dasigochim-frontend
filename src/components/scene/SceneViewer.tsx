@@ -8,6 +8,8 @@ export interface SceneMarker {
   y: number;
   z: number;
   color: string;
+  /** 처리완료 등 — 반투명하게 */
+  faded?: boolean;
 }
 
 interface SceneViewerProps {

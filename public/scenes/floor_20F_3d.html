@@ -665,9 +665,12 @@ start();
   const many = new THREE.Group();
   scene.add(many);
   const pinScale = pin.scale.x;
-  const buildPin = (color) => {
+  // faded: 처리완료 신고 — 위험도 색은 그대로 두고 반투명하게
+  const buildPin = (color, faded) => {
     const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.35 });
+    const mat = new THREE.MeshStandardMaterial(faded
+      ? { color, roughness: 0.35, transparent: true, opacity: 0.35, depthWrite: false }
+      : { color, roughness: 0.35 });
     const h = new THREE.Mesh(new THREE.SphereGeometry(0.28, 18, 14), mat);
     h.position.y = 1.1;
     const st = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 8), mat);
@@ -679,7 +682,7 @@ start();
   const setPins = (list, selectedId) => {
     while (many.children.length) many.remove(many.children[0]);
     (list || []).forEach((p) => {
-      const g = buildPin(p.color || '#e5484d');
+      const g = buildPin(p.color || '#e5484d', !!p.faded);
       g.position.set(p.x, p.y, p.z);
       g.userData.id = p.id;
       g.scale.setScalar(pinScale * (p.id === selectedId ? 1.45 : 1));

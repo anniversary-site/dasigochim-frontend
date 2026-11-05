@@ -11,7 +11,7 @@ import AdminTopNav from "@/components/admin/AdminTopNav";
 import AdminBuildingScene3D from "@/components/admin/AdminBuildingScene3D";
 import RegionKakaoMap from "@/components/admin/RegionKakaoMap";
 import SceneViewer from "@/components/scene/SceneViewer";
-import { markerColor } from "@/utils/reportMarker";
+import { markerColor, markerFaded } from "@/utils/reportMarker";
 import { complaintText } from "@/utils/reportDescription";
 import SpaceAnalysisSections, { type SpaceAnalysisData } from "@/components/admin/SpaceAnalysisSections";
 import { reportCategory, spaceCategorySummary, type SpaceCategory } from "@/utils/spaceCategorySummary";
@@ -155,7 +155,7 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
   // 층 화면의 3D 장면: 고른 공간(없으면 그 층 첫 공간)의 장면에 그 공간 신고 핀을 띄운다.
   const sceneSpace = selectedSpace ?? floorSpaces[0];
   const spaceMarkers = sceneSpace ? buildingReports.filter(r => belongsTo(r, sceneSpace) && r.space?.sceneId === sceneSpace.sceneId && r.space.pin)
-    .map(r => ({ id: r.id, x: r.space!.pin!.x, y: r.space!.pin!.y, z: r.space!.pin!.z, color: markerColor(r) })) : [];
+    .map(r => ({ id: r.id, x: r.space!.pin!.x, y: r.space!.pin!.y, z: r.space!.pin!.z, color: markerColor(r), faded: markerFaded(r) })) : [];
   const countBuilding = (id: number) => reports.filter(r => r.building?.id === id).length;
   const countDistrict = (district: string) => reports.filter(r => buildings.some(b => b.id === r.building?.id && b.sido === applied.sido && b.sigungu === district)).length;
   const scopedBuildings = buildings.filter(b => b.sido === applied.sido && (!applied.district || b.sigungu === applied.district));
