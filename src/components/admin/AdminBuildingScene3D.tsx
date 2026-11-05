@@ -36,7 +36,7 @@ export default function AdminBuildingScene3D({ buildingId, onOpenReport, initial
   onOpenReport: (reportId: number) => void;
   /** 처음 보여줄 장면. 없으면 신고가 가장 많은 장면 */
   initialSceneId?: string | null;
-  /** 바깥(상세 공간 버튼)에서 고른 장면. 주면 이 장면만 보여주고 3D 위치 없는 목록은 숨긴다 */
+  /** 바깥(상세 공간 버튼)에서 고른 장면. 주면 이 장면만 보여준다 */
   sceneId?: string | null;
   /** 장면 선택 버튼 줄. 첫 화면은 상단 상세 공간 버튼으로 고르므로 끈다 */
   showSceneTabs?: boolean;
@@ -92,7 +92,6 @@ export default function AdminBuildingScene3D({ buildingId, onOpenReport, initial
   }, [filtered]);
 
   const inScene = filtered.filter((r) => r.space?.sceneId === sceneId && r.space.pin);
-  const withoutPin = filtered.filter((r) => !r.space?.sceneId || !r.space.pin);
   const markers: SceneMarker[] = useMemo(() => inScene.map((r) => ({
     id: r.id, x: r.space!.pin!.x, y: r.space!.pin!.y, z: r.space!.pin!.z, color: markerColor(r),
   })), [inScene]);
@@ -168,9 +167,6 @@ export default function AdminBuildingScene3D({ buildingId, onOpenReport, initial
               selected={selected}
             />
           </div>
-          {!fixedSceneId && withoutPin.length > 0 && (
-            <ReportList title={`3D 위치가 없는 신고 ${withoutPin.length}건`} reports={withoutPin} onOpen={onOpenReport} wide />
-          )}
         </>
       ) : (
         <>

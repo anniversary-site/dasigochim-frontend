@@ -13,7 +13,7 @@ import RegionKakaoMap from "@/components/admin/RegionKakaoMap";
 import SceneViewer from "@/components/scene/SceneViewer";
 import { markerColor } from "@/utils/reportMarker";
 import SpaceAnalysisSections, { type SpaceAnalysisData } from "@/components/admin/SpaceAnalysisSections";
-import { reportCategory } from "@/utils/spaceCategorySummary";
+import { reportCategory, spaceCategorySummary, type SpaceCategory } from "@/utils/spaceCategorySummary";
 
 type Selection = { sido: string; district: string; building: string };
 const initial: Selection = { sido: "서울특별시", district: "", building: "" };
@@ -204,14 +204,23 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
         </Fragment>)}
         <button className="housing-primary query-button" disabled={loading}>조회하기</button>
       </div>
-      {building && view === "map" && <div className="housing-space-filters"><span>공간 유형</span>
+      {building && view === "map" && <div className="housing-space-filters">
+        <div className="housing-space-filter-row" role="group" aria-label="공간 유형">
+          <span className="housing-space-filter-label">공간 유형</span>
+          <div className="housing-space-filter-options">
         {["전체", "공용공간", "거주공간", "주변공간"].map(c => <button type="button" className={`housing-chip ${(categoryEntered || floor ? category === c : c === "전체") ? "active" : ""}`} key={c} onClick={() => enterCategory(c)}>{c}</button>)}
+          </div>
+        </div>
         {/* 상세 공간은 공간 유형을 골랐을 때만 — 공용공간은 층별 공간, 거주공간은 세대 타입 */}
-        {category === "공용공간" && categorySpaces.length > 0 && <><i /><span>상세 공간</span>
-          {[...new Set(categorySpaces.map(s => s.floorLabel ?? "기타"))].map(f => <button type="button" key={f} className={`housing-chip ${floor === f ? "active" : ""}`} onClick={() => pickFloor(f)}>{f} {categorySpaces.find(s => (s.floorLabel ?? "기타") === f)?.name}</button>)}</>}
-        {category === "거주공간" && categoryEntered && unitScenes.length > 0 && <><i /><span>상세 공간</span>
-          {unitScenes.map(u => <button type="button" key={u.sceneId} className={`housing-chip ${activeUnitScene === u.sceneId ? "active" : ""}`} onClick={() => setUnitScene(u.sceneId)}>{u.label}</button>)}</>}
-        {spacesLoading && <small role="status">공간 불러오는 중…</small>}
+        {((category === "공용공간" && categorySpaces.length > 0) || (category === "거주공간" && categoryEntered && unitScenes.length > 0) || spacesLoading) &&
+          <div className="housing-space-filter-row" role="group" aria-label="상세 공간">
+            <span className="housing-space-filter-label">상세 공간</span>
+            <div className="housing-space-filter-options">
+              {category === "공용공간" && [...new Set(categorySpaces.map(s => s.floorLabel ?? "기타"))].map(f => <button type="button" key={f} className={`housing-chip ${floor === f ? "active" : ""}`} onClick={() => pickFloor(f)}>{f} {categorySpaces.find(s => (s.floorLabel ?? "기타") === f)?.name}</button>)}
+              {category === "거주공간" && categoryEntered && unitScenes.map(u => <button type="button" key={u.sceneId} className={`housing-chip ${activeUnitScene === u.sceneId ? "active" : ""}`} onClick={() => setUnitScene(u.sceneId)}>{u.label}</button>)}
+              {spacesLoading && <small role="status">공간 불러오는 중…</small>}
+            </div>
+          </div>}
       </div>}
     </form>
     {error && <div className="housing-error" role="alert">{error} <button onClick={() => { setError(""); setLoading(true); setRetry(n => n + 1); }}>다시 불러오기</button></div>}
@@ -249,6 +258,13 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
         : <><div className="housing-subtitle">접수된 민원 {categoryReports.length}건</div>{categoryReports.length ? <section className="housing-category-reports">{categoryReports.map(r => <button key={r.id} className="analysis-report" onClick={() => navigate(`/admin/reports/${r.id}`)}><span><b>{r.summary ?? "공간 민원"}</b><small className="block">{r.locationDescription ?? r.space?.name ?? "위치 미등록"}</small></span><small>{REPORT_STATUS_LABEL[r.status]} →</small></button>)}</section> : <p className="housing-empty">{category === "공용공간" ? "이 건물에 등록된 공용공간과 민원이 없어요." : `아직 ${category}으로 접수된 민원이 없어요.`}</p>}</>}
     </main> : !floor ? <main className="housing-content">
       <AdminBuildingScene3D buildingId={building.id} showSceneTabs={false} onOpenReport={id => navigate(`/admin/reports/${id}`)} />
+      <nav className="housing-category-cards" aria-label="공간 유형별 이동">
+        {(["공용공간", "거주공간", "주변공간"] as SpaceCategory[]).map(name => <button key={name} type="button" onClick={() => enterCategory(name)}>
+          <b>{name}</b>
+          <span>{name === "공용공간" && spacesLoading ? "공간 정보 불러오는 중…" : spaceCategorySummary(name, buildingReports, currentSpaces)}</span>
+          <strong>공간 선택 →</strong>
+        </button>)}
+      </nav>
       {spacesError && <p className="housing-error" role="alert">{spacesError}</p>}
     </main> : <div className={`housing-workspace ${panel ? "with-panel" : ""}`}>
       <main className="housing-content floor-content">
