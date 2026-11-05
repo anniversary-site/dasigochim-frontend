@@ -31,15 +31,20 @@ function formatDate(value: string | null) {
  * 한 청년주택의 3D 장면에 접수된 신고 핀을 전부 띄운다.
  * 전체 / 미처리, 월별로 걸러 볼 수 있고, 핀이나 목록을 누르면 신고를 고른다.
  */
-export default function AdminBuildingScene3D({ buildingId, onOpenReport, initialSceneId, sceneClassName = "h-[560px]" }: {
+export default function AdminBuildingScene3D({ buildingId, onOpenReport, initialSceneId, sceneId: fixedSceneId, showSceneTabs = true, sceneClassName = "h-[560px]" }: {
   buildingId: number;
   onOpenReport: (reportId: number) => void;
   /** 처음 보여줄 장면. 없으면 신고가 가장 많은 장면 */
   initialSceneId?: string | null;
+  /** 바깥(상세 공간 버튼)에서 고른 장면. 주면 이 장면만 보여주고 3D 위치 없는 목록은 숨긴다 */
+  sceneId?: string | null;
+  /** 장면 선택 버튼 줄. 첫 화면은 상단 상세 공간 버튼으로 고르므로 끈다 */
+  showSceneTabs?: boolean;
   sceneClassName?: string;
 }) {
   const [map, setMap] = useState<AdminSpaceMap | null>(null);
-  const [sceneId, setSceneId] = useState<string | null>(null);
+  const [pickedSceneId, setSceneId] = useState<string | null>(null);
+  const sceneId = fixedSceneId ?? pickedSceneId;
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [month, setMonth] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -120,13 +125,13 @@ export default function AdminBuildingScene3D({ buildingId, onOpenReport, initial
           <Legend color="#f2994a" label="중간" />
           <Legend color="#e8b931" label="낮음" />
           <Legend color="#9e9e9e" label="처리완료" />
-          <span className="ml-1 font-medium text-neutral-800">신고 {filtered.length}건</span>
+          <span className="ml-1 font-medium text-neutral-800">신고 {fixedSceneId ? inScene.length : filtered.length}건</span>
         </div>
       </div>
 
       {currentMap.building.has3d ? (
         <>
-          <div className="flex flex-wrap gap-2">
+          {showSceneTabs && <div className="flex flex-wrap gap-2">
             {currentMap.scenes.map((scene) => (
               <button key={scene.sceneId} type="button"
                 onClick={() => { setSceneId(scene.sceneId); setSelectedId(null); }}
@@ -139,7 +144,7 @@ export default function AdminBuildingScene3D({ buildingId, onOpenReport, initial
                 </span>
               </button>
             ))}
-          </div>
+          </div>}
 
           <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-start">
             <div className="min-w-0 flex-1">
@@ -163,7 +168,7 @@ export default function AdminBuildingScene3D({ buildingId, onOpenReport, initial
               selected={selected}
             />
           </div>
-          {withoutPin.length > 0 && (
+          {!fixedSceneId && withoutPin.length > 0 && (
             <ReportList title={`3D 위치가 없는 신고 ${withoutPin.length}건`} reports={withoutPin} onOpen={onOpenReport} wide />
           )}
         </>
