@@ -1,6 +1,7 @@
 import type { Report } from "@/types";
 import { REPORT_STATUS_LABEL } from "@/types";
 import { reportCategory } from "@/utils/spaceCategorySummary";
+import { parseComplaintMeta } from "@/utils/reportDescription";
 
 /** 범위 안 민원만 보고 만드는 기본 요약 답변. AI 서버 연동 전 임시. */
 
@@ -18,9 +19,17 @@ export function isQuestionLike(text: string) {
 
 export function exportComplaintsCsv(scopeLabel: string, reports: Report[]) {
   const cell = (value: string) => `"${(/^[=+@\-\t\r]/.test(value) ? "'" + value : value).replaceAll('"', '""')}"`;
-  const rows = [["번호", "청년주택", "민원", "공간", "위험도", "상태", "접수일"],
-    ...reports.map((r) => [String(r.id), r.building?.name ?? "", r.summary ?? "", r.locationDescription ?? "",
-      r.riskLevel ?? "", REPORT_STATUS_LABEL[r.status], (r.submittedAt ?? r.createdAt).slice(0, 10)])];
+  // 원문 · 공간 유형 · 근본 요구 · 근본 요구 코드 · 표면 요청은 화면에 따로 보여주지 않고 내보내기에만 넣는다.
+  // 분석 항목이 없는 민원은 원문에 description 을 그대로 넣고 나머지는 빈칸으로 둔다.
+  const rows = [["번호", "청년주택", "민원", "공간", "위험도", "상태", "접수일",
+    "원문", "공간 유형", "근본 요구", "근본 요구 코드", "표면 요청"],
+    ...reports.map((r) => {
+      const meta = parseComplaintMeta(r.description);
+      return [String(r.id), r.building?.name ?? "", r.summary ?? "", r.locationDescription ?? "",
+        r.riskLevel ?? "", REPORT_STATUS_LABEL[r.status], (r.submittedAt ?? r.createdAt).slice(0, 10),
+        meta?.rawText ?? r.description ?? "", meta?.category ?? reportCategory(r, []) ?? "",
+        meta?.rootNeed ?? "", meta?.rootNeedCode ?? "", meta?.surfaceRequest ?? ""];
+    })];
   const csv = "﻿" + rows.map((row) => row.map(cell).join(",")).join("\r\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const a = document.createElement("a");

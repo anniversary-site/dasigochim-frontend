@@ -12,6 +12,7 @@ import AdminBuildingScene3D from "@/components/admin/AdminBuildingScene3D";
 import RegionKakaoMap from "@/components/admin/RegionKakaoMap";
 import SceneViewer from "@/components/scene/SceneViewer";
 import { markerColor } from "@/utils/reportMarker";
+import { complaintText } from "@/utils/reportDescription";
 import SpaceAnalysisSections, { type SpaceAnalysisData } from "@/components/admin/SpaceAnalysisSections";
 import { reportCategory, spaceCategorySummary, type SpaceCategory } from "@/utils/spaceCategorySummary";
 
@@ -291,7 +292,7 @@ export default function HousingAnalysisPage({ spaceAnalyses = {} }: { spaceAnaly
         <div className="analysis-body"><section className="analysis-location"><p>{applied.district} › {building.name} › {category} ›</p><h3>{selectedSpace ? spaceLabel(selectedSpace) : floor}</h3></section>
           <section className="analysis-stats"><div><span>민원</span><b>{scopedReports.length} <small>건</small></b></div><div><span>제기</span><b>— <small>세대</small></b></div><div><span>반복 문제</span><b>{problems.filter(([, n]) => n > 1).length} <small>개</small></b></div><div><span>처리 현황</span><strong>검토 {scopedReports.filter(r => r.status !== "RESOLVED").length} · 완료 {scopedReports.filter(r => r.status === "RESOLVED").length}</strong></div></section>
           <SpaceAnalysisSections analysis={spaceAnalysis} onReview={setReviewIds}>
-          <section className="analysis-section"><h3>대표 원문 <small>접수 원문</small></h3>{scopedReports.filter(r => r.description?.trim()).slice(0, 2).map(r => <blockquote key={r.id}>{r.description}</blockquote>)}{!scopedReports.some(r => r.description?.trim()) && <p className="housing-muted">등록된 민원 원문이 없어요.</p>}</section>
+          <section className="analysis-section"><h3>대표 원문 <small>접수 원문</small></h3>{scopedReports.filter(r => r.description?.trim()).slice(0, 2).map(r => <blockquote key={r.id}>{complaintText(r.description)}</blockquote>)}{!scopedReports.some(r => r.description?.trim()) && <p className="housing-muted">등록된 민원 원문이 없어요.</p>}</section>
           </SpaceAnalysisSections>
         </div>
       </aside>}

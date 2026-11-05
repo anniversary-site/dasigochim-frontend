@@ -10,6 +10,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useAuth } from "@/auth";
 import { reportApi } from "@/api";
 import type { Report, ReportSpace, RiskLevel, ReportStatus } from "@/types";
+import { complaintText } from "@/utils/reportDescription";
 
 type Tab = "mine" | "others" | "community";
 type StatusFilter = "ALL" | Exclude<ReportStatus, "RECEIVING">;
@@ -43,7 +44,7 @@ function toItem(report: Report): ReportItem {
   return {
     id: report.id,
     title: report.locationDescription ?? report.building?.name ?? report.summary ?? "공간 민원",
-    description: report.description ?? "상세 내용이 없습니다.",
+    description: complaintText(report.description) || "상세 내용이 없습니다.",
     departmentName: report.department?.name ?? "담당 부서 배정 중",
     status: report.status,
     riskLevel: report.riskLevel ?? "MEDIUM",
